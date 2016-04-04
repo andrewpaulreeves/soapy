@@ -164,7 +164,6 @@ class WFS(object):
 
         self.allocDataArrays()
 
-        self.calcTiltCorrect()
         self.getStatic()
 
 ############################################################

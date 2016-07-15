@@ -27,7 +27,8 @@ Examples::
 import numpy
 from scipy.interpolate import interp2d
 
-from . import aoSimLib, logger, opticalPropagationLib
+from . import logger
+from .aotools import opticalpropagation, interp, numbatools
 
 import numba
 
@@ -128,7 +129,7 @@ class LineOfSight(object):
             nOutPxls (int): Size of output array in pixels
         """
         # Convert phase deviation to radians at wfs wavelength.
-        # (in nm remember...?)
+        # (currently in nm remember...?)
         self.phs2Rad = 2*numpy.pi/(self.config.wavelength * 10**9)
 
         self.telDiam = float(self.simConfig.pupilSize) / self.simConfig.pxlScale
@@ -147,7 +148,7 @@ class LineOfSight(object):
             self.nOutPxls = nOutPxls
 
         if self.mask is not None:
-            self.outMask = aoSimLib.zoom_numba(
+            self.outMask = numbatools.zoom(
                     self.mask, numpy.zeros((self.nOutPxls,)*2),
                     threads=self.simConfig.procs).round()
 
@@ -297,8 +298,9 @@ class LineOfSight(object):
         xCoords = numpy.linspace(x1, x2-1, self.nOutPxls)
         yCoords = numpy.linspace(y1, y2-1, self.nOutPxls)
 
-        self.metaPupil = aoSimLib.linterp2d_numba(
-                scrn, xCoords, yCoords, self.metaPupil
+        self.metaPupil = numbatools.linterp2d(
+                scrn, xCoords, yCoords, self.metaPupil,
+                threads=self.simConfig.procs
                 )
 
         return self.metaPupil
@@ -401,7 +403,7 @@ class LineOfSight(object):
         if ht!=scrnAlts[0]:
             logger.debug("propagate to first phase screen")
             z = abs(scrnAlts[0] - ht)
-            self.EFieldBuf[:] = opticalPropagationLib.angularSpectrum(
+            self.EFieldBuf[:] = opticalpropagation.angularSpectrum(
                         self.EFieldBuf, self.config.wavelength,
                         self.outPxlScale, self.outPxlScale, z)
 
@@ -443,7 +445,7 @@ class LineOfSight(object):
             self.EFieldBuf *= numpy.exp(1j*phase)
 
             # Do ASP for last layer to next
-            self.EFieldBuf[:] = opticalPropagationLib.angularSpectrum(
+            self.EFieldBuf[:] = opticalpropagation.angularSpectrum(
                         self.EFieldBuf, self.config.wavelength,
                         self.outPxlScale, self.outPxlScale, z)
 
@@ -515,9 +517,8 @@ class LineOfSight(object):
 
             self.makePhase(self.radii)
         
+        self.residual = self.phase        
         if correction is not None:
             self.performCorrection(correction)
-        else:
-            self.residual = self.phase
 
         return self.residual

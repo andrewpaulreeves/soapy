@@ -88,9 +88,8 @@ except ImportError:
     except ImportError:
         raise ImportError("PyAOS requires either pyfits or astropy")
 
-from .. import AOFFT, aoSimLib, LGS, logger, lineofsight
-from ..tools import centroiders
-from ..opticalPropagationLib import angularSpectrum
+from .. import AOFFT, LGS, logger, lineofsight
+from ..aotools import centroiders, circle, numbatools
 
 # xrange now just "range" in python3.
 # Following code means fastest implementation used in 2 and 3
@@ -135,7 +134,7 @@ class WFS(object):
             self.mask = mask
         # Else we'll just make a circle
         else:
-            self.mask = aoSimLib.circle(
+            self.mask = circle.circle(
                     self.simConfig.pupilSize/2., self.simConfig.simSize,
                     )
 
@@ -169,7 +168,7 @@ class WFS(object):
         if numpy.any(mask):
             self.mask = mask
         else:
-            self.mask = aoSimLib.circle(
+            self.mask = circle.circle(
                     self.simConfig.pupilSize/2., self.simConfig.simSize,
                     )
 
@@ -230,7 +229,7 @@ class WFS(object):
                     )
 
                 # Calculate the zernikes to add
-                self.elongZs = aoSimLib.zernikeArray([2,3,4], self.simConfig.pupilSize)
+                self.elongZs = circle.zernikeArray([2,3,4], self.simConfig.pupilSize)
 
                 # Calculate the radii of the metapupii at for different elong
                 # Layer heights
@@ -314,9 +313,10 @@ class WFS(object):
         pad = ((self.simConfig.simPad,)*2, (self.simConfig.simPad,)*2)
         phaseAddition = numpy.pad(phaseAddition, pad, mode="constant")
 
-        phaseAddition = aoSimLib.zoom_numba(
+        phaseAddition = numbatools.zoom(
                 phaseAddition, (self.los.nOutPxls,)*2,
                 threads=self.simConfig.threads)
+
 
         return phaseAddition
 
@@ -426,7 +426,7 @@ class WFS(object):
 
             # if iMatFrame:
             #     try:
-            #         iMatPhase = aoSimLib.zoom(scrns, self.los.nOutPxls, order=1)
+            #         iMatPhase = interp.zoom(scrns, self.los.nOutPxls, order=1)
             #         self.los.EField[:] = numpy.exp(1j*iMatPhase*self.los.phs2Rad)
             #     except ValueError:
             #         raise ValueError("If iMat Frame, scrn must be ``simSize``")

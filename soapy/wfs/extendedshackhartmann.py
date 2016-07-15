@@ -12,9 +12,9 @@ except ImportError:
     except ImportError:
         raise ImportError("PyAOS requires either pyfits or astropy")
 
-from .. import AOFFT, aoSimLib, logger
+from .. import AOFFT, logger
 from . import shackhartmann
-from ..tools import centroiders
+from ..aotools import centroiders
 
 # xrange now just "range" in python3.
 # Following code means fastest implementation used in 2 and 3
@@ -128,8 +128,10 @@ class ExtendedSH(shackhartmann.ShackHartmann):
             y = int(y)
             self.centSubapArrays[i] = self.wfsDetectorPlane[x:x+self.wfsConfig.pxlsPerSubap,
                                                     y:y+self.wfsConfig.pxlsPerSubap ].astype(DTYPE)
+        # If a reference image is supplied, use it for correlation centroiding
         if self.referenceImage is not None:
             self.makeCorrelationImgs()
+        # Else: Just centroid on the extended image
         else:
             self.corrSubapArrays = self.FPSubapArrays
 

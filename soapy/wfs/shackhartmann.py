@@ -7,12 +7,12 @@ except ImportError:
     try:
         import pyfits as fits
     except ImportError:
-        raise ImportError("PyAOS requires either pyfits or astropy")
+        raise ImportError("Soapy requires either pyfits or astropy")
 
-from .. import AOFFT, aoSimLib, LGS, logger
+from .. import AOFFT, LGS, logger
 from . import base
-from ..tools import centroiders
-from ..opticalPropagationLib import angularSpectrum
+from .. import aotools
+from ..aotools import centroiders, wfs, interp
 
 import numba
 
@@ -90,7 +90,7 @@ class ShackHartmann(base.WFS):
                 self.simConfig.simPad : -self.simConfig.simPad,
                 self.simConfig.simPad : -self.simConfig.simPad
                 ]
-        self.subapCoords, self.subapFillFactor = aoSimLib.findActiveSubaps(
+        self.subapCoords, self.subapFillFactor = wfs.findActiveSubaps(
                 self.wfsConfig.nxSubaps, mask,
                 self.wfsConfig.subapThreshold, returnFill=True)
 
@@ -105,11 +105,11 @@ class ShackHartmann(base.WFS):
         super(ShackHartmann, self).setMask(mask)
 
         # Find the mask to apply to the scaled EField
-        self.scaledMask = numpy.round(aoSimLib.zoom(
+        self.scaledMask = numpy.round(interp.zoom(
                     self.mask, self.scaledEFieldSize))
 
         p = self.simConfig.simPad
-        self.subapFillFactor = aoSimLib.computeFillFactor(
+        self.subapFillFactor = wfs.computeFillFactor(
                 self.mask[p:-p, p:-p],
                 self.subapCoords,
                 round(float(self.simConfig.pupilSize)/self.wfsConfig.nxSubaps)
@@ -271,7 +271,7 @@ class ShackHartmann(base.WFS):
 
         if self.config.propagationMode=="Geometric":
             # Have to make phase the correct size if geometric prop
-            scaledEField = aoSimLib.zoom(self.los.phase, self.scaledEFieldSize)
+            scaledEField = interp.zoom(self.los.phase, self.scaledEFieldSize)
             scaledEField = numpy.exp(1j*scaledEField)
         else:
             scaledEField = self.EField
@@ -325,7 +325,7 @@ class ShackHartmann(base.WFS):
 
         # bins back down to correct size and then
         # fits them back in to a focal plane array
-        self.binnedFPSubapArrays[:] = aoSimLib.binImgs(self.FPSubapArrays,
+        self.binnedFPSubapArrays[:] = interp.binImgs(self.FPSubapArrays,
                                             self.wfsConfig.fftOversamp)
 
         # In case of empty sub-aps, will get NaNs
@@ -388,7 +388,7 @@ class ShackHartmann(base.WFS):
 
         # Scale data for correct number of photons
         self.wfsDetectorPlane /= self.wfsDetectorPlane.sum()
-        self.wfsDetectorPlane *= aoSimLib.photonsPerMag(
+        self.wfsDetectorPlane *= aotools.photonsPerMag(
                 self.wfsConfig.GSMag, self.mask, self.simConfig.pxlScale**(-1),
                 self.wfsConfig.wvlBandWidth, self.wfsConfig.exposureTime
                 ) * self.wfsConfig.throughput

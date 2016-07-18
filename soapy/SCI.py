@@ -20,7 +20,7 @@ import numpy
 import scipy.optimize as opt
 
 from . import AOFFT, logger, lineofsight
-from .aotools import circle, interp
+from .aotools import circle, interp, numbatools
 DTYPE = numpy.float32
 CDTYPE = numpy.complex64
 
@@ -65,7 +65,7 @@ class PSF(object):
                         self.simConfig.simPad:-self.simConfig.simPad
                         ]
 
-        self.scaledMask = numpy.round(interp.zoom(mask, self.FOVPxlNo)
+        self.scaledMask = numpy.round(numbatools.zoom(mask, (self.FOVPxlNo, )*2)
                                       ).astype("int32")
 
         # Init FFT object

@@ -12,7 +12,7 @@ except ImportError:
 from .. import AOFFT, LGS, logger
 from . import base
 from .. import aotools
-from ..aotools import centroiders, wfs, interp
+from ..aotools import centroiders, wfs, interp, numbatools
 
 import numba
 
@@ -65,6 +65,7 @@ class ShackHartmann(base.WFS):
                 self.config.nxSubaps*self.subapFOVSpacing*
                 (float(self.simConfig.simSize)/self.simConfig.pupilSize)
                 ))
+        
 
         # If physical prop, must always be at same pixel scale
         # If not, can use less phase points for speed
@@ -199,6 +200,9 @@ class ShackHartmann(base.WFS):
         self.wfsDetectorPlane = numpy.zeros( (  self.detectorPxls,
                                                 self.detectorPxls   ),
                                                 dtype = DTYPE )
+        
+        self.scaledEField = numpy.zeros((self.scaledEFieldSize,)*2, dtype=CDTYPE)
+
         #Array used when centroiding subaps
         self.centSubapArrays = numpy.zeros( (self.activeSubaps,
               self.config.pxlsPerSubap, self.wfsConfig.pxlsPerSubap) )
@@ -271,18 +275,18 @@ class ShackHartmann(base.WFS):
 
         if self.config.propagationMode=="Geometric":
             # Have to make phase the correct size if geometric prop
-            scaledEField = interp.zoom(self.los.phase, self.scaledEFieldSize)
-            scaledEField = numpy.exp(1j*scaledEField)
+            self.scaledEField = numbatools.zoom(self.los.phase, self.scaledEField)
+            self.scaledEField = numpy.exp(1j*self.scaledEField)
         else:
-            scaledEField = self.EField
+            self.scaledEField = self.EField
 
         # Apply the scaled pupil mask
-        scaledEField *= self.scaledMask
+        self.scaledEField *= self.scaledMask
 
         # Now cut out only the eField across the pupilSize
         coord = int(round(int(((self.scaledEFieldSize/2.)
                 - (self.wfsConfig.nxSubaps*self.subapFOVSpacing)/2.))))
-        self.cropEField = scaledEField[coord:-coord, coord:-coord]
+        self.cropEField = self.scaledEField[coord:-coord, coord:-coord]
 
         #create an array of individual subap EFields
         for i in xrange(self.activeSubaps):

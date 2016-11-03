@@ -397,6 +397,7 @@ class WFS(object):
         Returns:
             ndarray: WFS Measurements
         '''
+        print('scrns: {}'.format(scrns))
 
        #If iMatFrame, turn off unwanted effects
         if iMatFrame:

@@ -39,22 +39,49 @@ class Gradient(base.WFS):
 
         # Amp in m of 1 arcsecond tilt for single sub-aperture
         amp = self.telConfig.telDiam * 1. * ASEC2RAD
-        
+
         # amp of 1" tilt in rads of the light
         amp *= ((2 * numpy.pi) / self.config.wavelength)
 
         # Arrays to be used for gradient calculation
         telCoord = numpy.linspace(0, amp, self.soapyConfig.sim.pupilSize)
         subapCoord = telCoord[:self.subapSpacing]
-        
+
         # Remove piston
         subapCoord -= subapCoord.mean()
         subapCoord *= -1
-        
+
         self.xGrad_1, self.yGrad_1 = numpy.meshgrid(subapCoord, subapCoord)
-        
+
         self.xGrad = self.xGrad_1/((self.xGrad_1**2).sum())
         self.yGrad = self.yGrad_1/((self.yGrad_1**2).sum())
+
+        xGrad, yGrad = numpy.meshgrid(
+                numpy.arange(0, self.soapyConfig.sim.pupilSize),
+                numpy.arange(0, self.soapyConfig.sim.pupilSize))
+
+        xGrad *= self.mask
+        yGrad *= self.mask
+
+        self.xGrads = numpy.zeros((self.activeSubaps, self.subapSpacing, self.subapSpacing))
+        self.yGrads = self.xGrads.copy()
+        for i, (x, y) in enumerate(self.subapCoords):
+            x1 = int(round(x))
+            x2 = int(round(x + self.subapSpacing))
+            y1 = int(round(y))
+            y2 = int(round(y + self.subapSpacing))
+
+            xg = xGrad[x1: x2, y1: y2]
+            yg = yGrad[x1: x2, y1: y2]
+
+            xg -= xg.mean()
+            zy -= yg.mean()
+
+            xg = xg/((xg**2).sum())
+            yg = yg/((yg**2).sum())
+
+            self.xGrad[i] = xg
+            self.yGrad[i] = yg
 
     def findActiveSubaps(self):
         '''
@@ -70,6 +97,9 @@ class Gradient(base.WFS):
                 self.wfsConfig.subapThreshold, returnFill=True)
 
         self.activeSubaps = self.subapCoords.shape[0]
+
+    #     Also need to get a normalisation factor for each sub-ap tip-tilt
+
 
     def allocDataArrays(self):
         """
@@ -113,6 +143,7 @@ class Gradient(base.WFS):
             self.subapArrays[i] = self.pupilPhase[x1: x2, y1: y2]
 
 
+
     def makeDetectorPlane(self):
         '''
         Creates a 'detector' image suitable for plotting
@@ -135,8 +166,8 @@ class Gradient(base.WFS):
         # Integrate with tilt/tip to get slope measurements
         for i, subap in enumerate(self.subapArrays):
             subap -= subap.mean()
-            self.slopes[i] = (subap * self.xGrad).sum()
-            self.slopes[i+self.activeSubaps] = (subap * self.yGrad).sum()
+            self.slopes[i] = (subap * self.xGrads[i]).sum()
+            self.slopes[i+self.activeSubaps] = (subap * self.yGrads[i]).sum()
 
         # self.slopes[:self.activeSubaps] = self.xSlopes
         # self.slopes[self.activeSubaps:] = self.ySlopes

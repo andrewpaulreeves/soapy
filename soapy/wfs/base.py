@@ -403,8 +403,6 @@ class WFS(object):
         Returns:
             ndarray: WFS Measurements
         '''
-        print('scrns: {}'.format(scrns))
-
        #If iMatFrame, turn off unwanted effects
         if iMatFrame:
             self.iMat = True
@@ -433,7 +431,7 @@ class WFS(object):
             #     except ValueError:
             #         raise ValueError("If iMat Frame, scrn must be ``simSize``")
             # else:
-            self.los.makePhase(self.radii)
+            # self.los.makePhase(self.radii)
 
             self.uncorrectedPhase = self.los.phase.copy()/self.los.phs2Rad
             if correction is not None:

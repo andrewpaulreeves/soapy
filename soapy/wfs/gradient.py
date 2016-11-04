@@ -56,12 +56,13 @@ class Gradient(base.WFS):
         self.xGrad = self.xGrad_1/((self.xGrad_1**2).sum())
         self.yGrad = self.yGrad_1/((self.yGrad_1**2).sum())
 
-        xGrad, yGrad = numpy.meshgrid(
-                numpy.arange(0, self.soapyConfig.sim.pupilSize),
-                numpy.arange(0, self.soapyConfig.sim.pupilSize))
-
-        xGrad *= self.mask
-        yGrad *= self.mask
+        xGrad, yGrad = numpy.meshgrid(telCoord,  telCoord)
+        pupilMask = self.mask[
+                self.simConfig.simPad : -self.simConfig.simPad,
+                self.simConfig.simPad : -self.simConfig.simPad
+                ]
+        xGrad *= pupilMask.astype('float32')
+        yGrad *= pupilMask.astype('float32')
 
         self.xGrads = numpy.zeros((self.activeSubaps, self.subapSpacing, self.subapSpacing))
         self.yGrads = self.xGrads.copy()
@@ -75,13 +76,13 @@ class Gradient(base.WFS):
             yg = yGrad[x1: x2, y1: y2]
 
             xg -= xg.mean()
-            zy -= yg.mean()
+            yg -= yg.mean()
 
             xg = xg/((xg**2).sum())
             yg = yg/((yg**2).sum())
 
-            self.xGrad[i] = xg
-            self.yGrad[i] = yg
+            self.xGrads[i] = xg
+            self.yGrads[i] = yg
 
     def findActiveSubaps(self):
         '''

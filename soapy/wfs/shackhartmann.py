@@ -311,6 +311,9 @@ class ShackHartmann(base.WFS):
             self.FPSubapArrays += intensity*numpy.abs(
                     AOFFT.ftShift2d(self.FFT()))**2
 
+        # Sub-aps need to be flipped to correct orientation
+        self.FPSubapsArrays = self.FPSubapArrays[:, ::-1, ::-1]
+
     @numba.jit
     def makeDetectorPlane(self):
         '''

@@ -58,10 +58,10 @@ def zoom_numbaThread(data,  chunkIndices, zoomArray):
         interpArray (ndarray): A pointer to the calculated ``zoomArray''
     """
 
-    for i in xrange(chunkIndices[0], chunkIndices[1]):
+    for i in range(chunkIndices[0], chunkIndices[1]):
         x = i*numba.float32(data.shape[0]-1)/(zoomArray.shape[0]-0.99999999)
         x1 = numba.int32(x)
-        for j in xrange(zoomArray.shape[1]):
+        for j in range(zoomArray.shape[1]):
             y = j*numba.float32(data.shape[1]-1)/(zoomArray.shape[1]-0.99999999)
             y1 = numba.int32(y)
 
@@ -92,10 +92,10 @@ def zoom_numba1(data, zoomArray):
         interpArray (ndarray): A pointer to the calculated ``zoomArray''
     """
 
-    for i in xrange(numba.int32(zoomArray.shape[0])):
+    for i in range(numba.int32(zoomArray.shape[0])):
         x = i*numba.float32(data.shape[0]-1)/(zoomArray.shape[0]-0.99999999)
         x1 = numba.int32(x)
-        for j in xrange(zoomArray.shape[1]):
+        for j in range(zoomArray.shape[1]):
             y = j*numba.float32(data.shape[1]-1)/(zoomArray.shape[1]-0.99999999)
             y1 = numba.int32(y)
 
@@ -173,8 +173,8 @@ def linterp2d_thread(data, xCoords, yCoords, chunkIndices, interpArray):
     if yCoords[-1] == data.shape[1]-1:
         yCoords[-1] -= 1e-6
 
-    jRange = xrange(yCoords.shape[0])
-    for i in xrange(chunkIndices[0],chunkIndices[1]):
+    jRange = range(yCoords.shape[0])
+    for i in range(chunkIndices[0],chunkIndices[1]):
         x = xCoords[i]
         x1 = numba.int32(x)
         for j in jRange:
@@ -214,8 +214,8 @@ def linterp2d_1thread(data, xCoords, yCoords, interpArray):
     if yCoords[-1] == data.shape[1]-1:
         yCoords[-1] -= 1e-6
 
-    jRange = xrange(yCoords.shape[0])
-    for i in xrange(xCoords.shape[0]):
+    jRange = range(yCoords.shape[0])
+    for i in range(xCoords.shape[0]):
         x = xCoords[i]
         x1 = numba.int32(x)
         for j in jRange:
@@ -243,11 +243,11 @@ def absSquare(data):
 @numba.jit(nopython=True)
 def binImg(img, binSize, newImg):
 
-    for i in xrange(newImg.shape[0]):
+    for i in range(newImg.shape[0]):
         x1 = i*binSize
-        for j in xrange(newImg.shape[1]):
+        for j in range(newImg.shape[1]):
             y1 = j*binSize
             newImg[i,j] = 0
-            for x in xrange(binSize):
-                for y in xrange(binSize):
+            for x in range(binSize):
+                for y in range(binSize):
                     newImg[i,j] += img[x+x1, y+y1]

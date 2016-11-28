@@ -65,13 +65,13 @@ class ShackHartmann(base.WFS):
                 self.config.nxSubaps*self.subapFOVSpacing*
                 (float(self.simConfig.simSize)/self.simConfig.pupilSize)
                 ))
-        
+
 
         # If physical prop, must always be at same pixel scale
         # If not, can use less phase points for speed
         if self.config.propagationMode=="Physical":
             # This the pixel scale required for the correct FOV
-            outPxlScale = (float(self.simConfig.simSize)/float(self.scaledEFieldSize)) * (self.simConfig.pxlScale**-1)
+            outPxlScale = (float(self.simConfig.simSize)/float(seWFS_lf.scaledEFieldSize)) * (self.simConfig.pxlScale**-1)
             self.los.calcInitParams(
                     outPxlScale=outPxlScale, nOutPxls=self.scaledEFieldSize)
 
@@ -101,6 +101,11 @@ class ShackHartmann(base.WFS):
                         self.detectorPxls/float(self.simConfig.pupilSize) ) )
 
         self.setMask(self.mask)
+
+
+
+        self.subap_crop_coords, self.subap_detector_coords = self.get_subapcoords_on_detector()
+
 
     def setMask(self, mask):
         super(ShackHartmann, self).setMask(mask)
@@ -264,7 +269,7 @@ class ShackHartmann(base.WFS):
         if detector:
             self.wfsDetectorPlane[:] = 0
 
-    @numba.jit
+    # @numba.jit
     def calcFocalPlane(self, intensity=1):
         '''
         Calculates the wfs focal plane, given the phase across the WFS
@@ -314,38 +319,15 @@ class ShackHartmann(base.WFS):
         # Sub-aps need to be flipped to correct orientation
         self.FPSubapsArrays = self.FPSubapArrays[:, ::-1, ::-1]
 
-    @numba.jit
-    def makeDetectorPlane(self):
-        '''
-        Scales and bins intensity data onto the detector with a given number of
-        pixels.
+    def get_subapcoords_on_detector(self):
 
-        If required, will first convolve final PSF with LGS PSF, then bin
-        PSF down to detector size. Finally puts back into ``wfsFocalPlane``
-        array in correct order.
-        '''
+        subap_cooods = numpy.zeros((self.activeSubaps, 4))
+        detector_coords = subap_cooods.copy()
 
-        # If required, convolve with LGS PSF
-        if self.wfsConfig.lgs and self.lgs and self.lgsConfig.uplink and self.iMat!=True:
-            self.applyLgsUplink()
+        for i in range(self.activeSubaps):
 
-
-        # bins back down to correct size and then
-        # fits them back in to a focal plane array
-        self.binnedFPSubapArrays[:] = interp.binImgs(self.FPSubapArrays,
-                                            self.wfsConfig.fftOversamp)
-
-        # In case of empty sub-aps, will get NaNs
-        self.binnedFPSubapArrays[numpy.isnan(self.binnedFPSubapArrays)] = 0
-
-        # Scale each sub-ap flux by sub-aperture fill-factor
-        self.binnedFPSubapArrays\
-                = (self.binnedFPSubapArrays.T * self.subapFillFactor).T
-
-        for i in xrange(self.activeSubaps):
-            x,y=self.detectorSubapCoords[i]
-
-            #Set default position to put arrays into (SUBAP_OVERSIZE FOV)
+            x, y = self.detectorSubapCoords[i]
+            # Set default position to put arrays into (SUBAP_OVERSIZE FOV)
             x1 = int(round(
                     x+self.wfsConfig.pxlsPerSubap/2.
                     -self.wfsConfig.pxlsPerSubap2/2.))
@@ -359,7 +341,7 @@ class ShackHartmann(base.WFS):
                     y+self.wfsConfig.pxlsPerSubap/2.
                     +self.wfsConfig.pxlsPerSubap2/2.))
 
-            #Set defualt size of input array (i.e. all of it)
+            # Set defualt size of input array (i.e. all of it)
             x1_fp = int(0)
             x2_fp = int(round(self.wfsConfig.pxlsPerSubap2))
             y1_fp = int(0)
@@ -389,6 +371,45 @@ class ShackHartmann(base.WFS):
                 y2_fp = int(round(
                         self.wfsConfig.pxlsPerSubap2/2.
                         +self.wfsConfig.pxlsPerSubap/2.))
+
+            subap_cooods[i] = x1, x2, y1, y2
+            detector_coords[i] = x1_fp, x2_fp, y1_fp, y2_fp
+
+        return subap_cooods, detector_coords
+
+
+    # @numba.jit
+    def makeDetectorPlane(self):
+        '''
+        Scales and bins intensity data onto the detector with a given number of
+        pixels.
+
+        If required, will first convolve final PSF with LGS PSF, then bin
+        PSF down to detector size. Finally puts back into ``wfsFocalPlane``
+        array in correct order.
+        '''
+
+        # If required, convolve with LGS PSF
+        if self.wfsConfig.lgs and self.lgs and self.lgsConfig.uplink and self.iMat!=True:
+            self.applyLgsUplink()
+
+
+        # bins back down to correct size and then
+        # fits them back in to a focal plane array
+        self.binnedFPSubapArrays[:] = interp.binImgs(self.FPSubapArrays,
+                                            self.wfsConfig.fftOversamp)
+
+        # In case of empty sub-aps, will get NaNs
+        self.binnedFPSubapArrays[numpy.isnan(self.binnedFPSubapArrays)] = 0
+
+        # Scale each sub-ap flux by sub-aperture fill-factor
+        self.binnedFPSubapArrays\
+                = (self.binnedFPSubapArrays.T * self.subapFillFactor).T
+
+        for i in range(self.activeSubaps):
+
+            x1, x2, y1, y2 = self.subap_crop_coords[i]
+            x1_fp, x2_fp, y1_fp, y2_fp = self.subap_detector_coords[i]
 
             self.wfsDetectorPlane[x1:x2, y1:y2] += (
                     self.binnedFPSubapArrays[i, x1_fp:x2_fp, y1_fp:y2_fp])
@@ -427,7 +448,7 @@ class ShackHartmann(base.WFS):
         self.FFT.inputData[:] = self.iFFTFPSubapsArray
         self.FPSubapArrays[:] = AOFFT.ftShift2d(self.FFT()).real
 
-    @numba.jit
+    # @numba.jit
     def calculateSlopes(self):
         '''
         Calculates WFS slopes from wfsFocalPlane

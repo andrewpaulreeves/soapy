@@ -269,7 +269,7 @@ class ShackHartmann(base.WFS):
         if detector:
             self.wfsDetectorPlane[:] = 0
 
-    # @numba.jit
+    @numba.jit
     def calcFocalPlane(self, intensity=1):
         '''
         Calculates the wfs focal plane, given the phase across the WFS

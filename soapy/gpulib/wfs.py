@@ -4,7 +4,7 @@ import math
 import numpy
 
 # Cuda threads per block
-CUDA_TPB = 1024
+CUDA_TPB = 32
 
 def zoomToEField(data, zoomArray, threadsPerBlock=None):
     """

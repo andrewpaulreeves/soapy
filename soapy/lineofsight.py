@@ -534,12 +534,14 @@ class LineOfSightGPU(LineOfSight):
 
     def allocDataArrays(self):
         super(LineOfSightGPU, self).allocDataArrays()
-        scrnArrSize = (
-                        self.atmosConfig.scrnNo, self.simConfig.scrnSize, 
-                        self.simConfig.scrnSize)
-        self.scrns_gpu = cuda.device_array(scrnArrSize, dtype=DTYPE)
+        scrnArrSize = (self.simConfig.scrnSize, self.simConfig.scrnSize)
+
+        self.scrns_gpu = []
+        for i in range(self.soapyConfig.atmos.scrnNo):
+            self.scrns_gpu.append(cuda.device_array(scrnArrSize, dtype=DTYPE))
 
         self.phase_gpu = cuda.device_array_like(self.phase)
+        self.total_phase_gpu = cuda.device_array_like(self.phase)
 
     def makePhaseGeometric(self, radii=None, apos=None):
         '''
@@ -549,19 +551,25 @@ class LineOfSightGPU(LineOfSight):
             radii (dict, optional): Radii of each meta pupil of each screen height in pixels. If not given uses pupil radius.
             apos (ndarray, optional):  The angular position of the GS in radians. If not set, will use the config position
         '''
-        # If screens a dict, turn to array
+        # convert dict to list
         if isinstance(self.scrns, dict):
-            self.scrns = numpy.array(self.scrns.values())
-        elif isinstance(self.scrns, list):
-            self.scrns = numpy.array(self.scrns)
+            self.scrns = list(self.scrns.values())
 
-        # Copy screens to the GPU
-        print(self.scrns.max())
-        self.scrns_gpu.copy_to_device(self.scrns.astype(self.scrns_gpu.dtype))
-        # Check screen value
-        print(self.scrns_gpu.copy_to_host().max())
+        for i, scrn in enumerate(self.scrns):
+            # Copy screens to the GPU
+            self.scrns_gpu[i].copy_to_device(scrn.astype(self.scrns_gpu[0].dtype))
 
+            import pylab
+            pylab.figure()
+            pylab.subplot(1,2,1)
+            pylab.imshow(scrn)
+            pylab.subplot(1,2,2)
+            pylab.imshow(self.scrns_gpu[i].copy_to_host())
+            pylab.draw()
+            pylab.show()
+            raise Exception
 
+        self.phase_gpu_list = []
         for i in range(len(self.scrns)):
             logger.debug("Layer: {}".format(i))
             if radii is None:
@@ -579,7 +587,10 @@ class LineOfSightGPU(LineOfSight):
                     self.scrns_gpu[i], self.atmosConfig.scrnHeights[i],
                     pos=pos, radius=radius)
 
-        self.phase[:] = self.phase_gpu.copy_to_host()
+            gpulib.array_sum2d(self.total_phase_gpu, self.phase_gpu)
+
+        self.phase[:] = self.total_phase_gpu.copy_to_host()
+
         # Convert phase to radians
         self.phase *= self.phs2Rad
 
@@ -650,9 +661,15 @@ class LineOfSightGPU(LineOfSight):
         
         # print("scrn Max:{}".format(scrn.copy_to_host().max()))
         # print("phase Max: {}".format(self.phase_gpu.copy_to_host().max()))
+        import pylab
+        pylab.imshow(scrn.copy_to_host())
+        pylab.draw()
+        pylab.show()
         gpulib.bilinterp2d_regular(
                 scrn, x1, x2, self.nOutPxls, y1, y2, self.nOutPxls,
-                self.phase_gpu) 
+                self.phase_gpu)
+
+
 
 ######################################################
 

@@ -14,13 +14,13 @@ CDTYPE = numpy.complex64
 DTYPE = numpy.float32
 
 class ShackHartmannGPU(shackhartmann.ShackHartmann):
-    # def initLos(self):
-    #     """
-    #     Initialises the ``LineOfSight`` object, which gets the phase or EField in a given direction through turbulence.
-    #     """
-    #     self.los = lineofsight.LineOfSightGPU(
-    #             self.config, self.soapyConfig,
-    #             propagationDirection="down")
+    def initLos(self):
+        """
+        Initialises the ``LineOfSight`` object, which gets the phase or EField in a given direction through turbulence.
+        """
+        self.los = lineofsight.LineOfSightGPU(
+                self.config, self.soapyConfig,
+                propagationDirection="down")
 
 
     def allocDataArrays(self):

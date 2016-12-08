@@ -217,3 +217,49 @@ def absSquared3d(inputData, outputData, threadsPerBlock=None):
 def absSquared3d_kernel(inputData, outputData):
     i, j, k = cuda.grid(3)
     outputData[i, j, k] = inputData[i, j, k].real**2 + inputData[i, j, k].imag**2
+
+
+def array_sum(array1, array2, threadsPerBlock=None):
+
+    if threadsPerBlock is None:
+        threadsPerBlock = CUDA_TPB
+
+    tpb = threadsPerBlock
+    # blocks per grid
+    bpg = int(numpy.ceil(float(array1.shape[0])/threadsPerBlock)),
+
+
+    array_sum_kernel[tpb, bpg](array1, array2)
+
+    return array1
+
+@cuda.jit
+def array_sum_kernel(array1, array2):
+    i = cuda.grid(1)
+
+    array1[i] += array2[i]
+
+
+def array_sum2d(array1, array2, threadsPerBlock=None):
+
+    if threadsPerBlock is None:
+        threadsPerBlock = CUDA_TPB
+
+    tpb = (threadsPerBlock, )*2
+    # blocks per grid
+    bpg = (
+            int(numpy.ceil(float(array1.shape[0])/threadsPerBlock)),
+            int(numpy.ceil(float(array1.shape[1])/threadsPerBlock))
+            )
+
+    array_sum2d_kernel[tpb, bpg](array1, array2)
+
+    return array1
+
+@cuda.jit
+def array_sum2d_kernel(array1, array2):
+    i, j = cuda.grid(2)
+
+    if i < array1.shape[0]:
+        if j < array1.shape[1]:
+            array1[i, j] += array2[i, j]

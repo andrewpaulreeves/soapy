@@ -1,6 +1,7 @@
 import multiprocessing
 N_CPU = multiprocessing.cpu_count()
 from threading import Thread
+from queue import Queue
 import logging
 import time
 
@@ -10,44 +11,47 @@ import pyfftw
 
 from aotools import wfs as wfslib
 
-from . import lineofsight2
-
-spec = [
-    ('phase', numba.float32[:,:]),
-    ('nx_subaps', numba.int32),
-    ('subap_positions', numba.float32[:, :]),
-    ('slopes', numba.float32[:]),
-    ('pupil_mask', numba.float32[:, :])
-]
 
 ASEC2RAD = (numpy.pi/(180 * 3600))
 
-class ShackHartmann(object):
+class ShackHartmann2(object):
     """
     A Shack-Hartmann WFS
 
     An object that accepts a phase instance, and calculates the resulting measurements as would be observed by a Shack-Hartmann WFS. To do this, the phase is first interpolated linearly to make a size that will return the desired pixel scale. The phase is then split into sub-apertures, each of which is brought to a focal plane using an FFT. The individual sub-apertures are placed back into a SH WFS detector image. A centroiding algorithm is then performed on each sub-aperture this detector array
 
     Parameters:
-        wfs_config (WFSConfig)
+        soapy_config (SoapyConfig):
+        wfs_index (int):
+        mask (ndarray):
 
     """
-    def __init__(self, wfs_config):
-        
-        self.pupil_size = wfs_config.pupil_size
-        self.nx_subaps = wfs_config.nx_subaps
-        self.subap_diam = wfs_config.subap_diam
-        self.wavelength = wfs_config.wavelength
-        self.pxl_scale = wfs_config.pxl_scale
-        self.nx_subap_pxls = wfs_config.nx_subap_pxls
-        self.telescope_diameter = wfs_config.telescope_diameter
-        self.subap_threshold = wfs_config.subap_threshold
-        self.mask = wfs_config.mask
+    def __init__(self, soapy_config, wfs_index, mask):
 
-        self.threads = wfs_config.threads
+        # Get parameters from configuration
+        # ---------------------------------
+        wfs_config = soapy_config.wfss[wfs_index]
+
+        self.pupil_size = soapy_config.sim.pupilSize
+        self.threads = soapy_config.sim.threads
+
+        self.mask = mask[
+                soapy_config.sim.simPad:-soapy_config.sim.simPad,
+                soapy_config.sim.simPad:-soapy_config.sim.simPad
+                ]
+        self.telescope_diameter = soapy_config.tel.telDiam
+
+        self.subap_fov = wfs_config.subapFOV
+        self.nx_subaps = wfs_config.nxSubaps
+        self.wavelength = wfs_config.wavelength
+        self.nx_subap_pxls = wfs_config.pxlsPerSubap
+        self.subap_threshold = wfs_config.subapThreshold
 
         # Calculate some parameters
         # -------------------------
+        self.pxl_scale = self.subap_fov/self.nx_subap_pxls
+        self.subap_diam = self.telescope_diameter/self.nx_subaps
+
         # coordinates of sub-ap positions on pupil and detector
         self.subap_positions, self.subapFillFactor = wfslib.findActiveSubaps(
                 self.nx_subaps, self.mask,
@@ -222,12 +226,12 @@ class ShackHartmann(object):
                 self.nx_subap_pxls, self.slope_calc_subaps, threads=self.threads)
 
         # print("Do Centroider")
-        self.slopes = self.centroider(self.slope_calc_subaps).flatten()
+        self.slopes = self.centroider(self.slope_calc_subaps).T.flatten()
 
         # correct for static slopes
         self.slopes -= self.static_slopes
 
-    def frame(self, phase):
+    def frame(self, phase, read=False):
 
         # convert phase to radians
         self.phase = phase
@@ -521,18 +525,19 @@ class Centroider(object):
         self.centroids = numpy.zeros((n_subaps, 2))
 
     def __call__(self, subaps):
-        self.centre_of_gravity_numba(subaps)
+        self.centre_of_gravity_numpy(subaps)
         return self.centroids
 
 
     def centre_of_gravity_numpy(self, subaps):
-        self.centroids[:, 0] = ((self.indices[0]*subaps).sum((1,2))/subaps.sum((1,2))) + 0.5 + subaps.shape[1] * 0.5
-        self.centroids[:, 1] = ((self.indices[1]*subaps).sum((1,2))/subaps.sum((1,2))) + 0.5 + subaps.shape[2] * 0.5
+        self.centroids[:, 0] = ((self.indices[0]*subaps).sum((1,2))/subaps.sum((1,2))) + 0.5 - subaps.shape[1] * 0.5
+        self.centroids[:, 1] = ((self.indices[1]*subaps).sum((1,2))/subaps.sum((1,2))) + 0.5 - subaps.shape[2] * 0.5
+        return self.centroids
 
     def centre_of_gravity_numba(self, subaps):
 
         centre_of_gravity(subaps, self.indices, self.centroids, self.threads)
-
+        return self.centroids
 
 def centre_of_gravity(subaps, indices, centroids, threads=None):
     if threads is None:
@@ -560,10 +565,12 @@ def centre_of_gravity_numba(subaps, indices, centroids, thread_indices):
 
     s1, s2 = thread_indices
     nx_subap_size = subaps.shape[1]
-    centroids[thread_indices[0]:thread_indices[1], 0] = (
-            indices[0]*subaps[s1:s2]).sum((1,2))/subaps[s1:s2].sum((1,2)) + 0.5 - nx_subap_size*0.5
-    centroids[thread_indices[0]:thread_indices[1], 1] = (
-            indices[1]*subaps[s1:s2]).sum((1,2))/subaps[s1:s2].sum((1,2)) + 0.5 - nx_subap_size*0.5
+    subaps = subaps[s1:s2]
+
+    centroids[s1:s2, 0] = (
+            indices[0]*subaps).sum((1,2))/subaps.sum((1,2)) + 0.5 - nx_subap_size*0.5
+    centroids[s1:s2, 1] = (
+            indices[1]*subaps).sum((1,2))/subaps.sum((1,2)) + 0.5 - nx_subap_size*0.5
 
 
 def abs_squared(subap_data, subap_output, threads=None):
@@ -606,9 +613,8 @@ def abs_squared_slow(data, output_data, threads=None):
                 output_data[n, x, y] = data[n, x, y].real**2 + data[n, x, y].imag**2
 
 
-class WFS_Config(lineofsight2.LOS_Config):
+def run_threaded_func(func, args, error_queue):
     pass
-
 
 def loop_sh(sh, phs, N=1000):
     t1 = time.time()

@@ -59,11 +59,7 @@ Examples:
 
 '''
 
-#sim imports
-from . import atmosphere, logger, wfs, DM, RECON, SCI, confParse, aotools
-from .aotools import circle, interp
-
-#standard python imports
+# standard python imports
 import numpy
 import datetime
 import os
@@ -73,7 +69,11 @@ from multiprocessing import Process, Queue
 from argparse import ArgumentParser
 import shutil
 
-#Use pyfits or astropy for fits file handling
+# sim imports
+from . import atmosphere, logger, wfs, DM, RECON, SCI, confParse, aotools, lineofsight2
+from .aotools import circle, interp
+
+# Use pyfits or astropy for fits file handling
 try:
     from astropy.io import fits
 except ImportError:
@@ -184,9 +184,13 @@ class Sim(object):
         # Init WFSs
         logger.info("Initialising WFSs....")
         self.wfss = {}
+        self.wfs_los = {}
         self.config.sim.totalWfsData = 0
         self.wfsFrameNo = numpy.zeros(self.config.sim.nGS)
         for nwfs in xrange(self.config.sim.nGS):
+
+            self.wfs_los[nwfs] = lineofsight2.LineOfSight(
+                    self.config.wfss[0], self.config)
             try:
                 wfsClass = getattr(wfs, self.config.wfss[nwfs].type)
             except AttributeError:
@@ -195,13 +199,13 @@ class Sim(object):
                                 self.config.wfss[wfs].type))
 
             self.wfss[nwfs] = wfsClass(
-                    self.config, nWfs=nwfs, mask=self.mask)
+                    self.config, nwfs, mask=self.mask)
 
             self.config.wfss[nwfs].dataStart = self.config.sim.totalWfsData
-            self.config.sim.totalWfsData += self.wfss[nwfs].activeSubaps*2
+            self.config.sim.totalWfsData += self.wfss[nwfs].n_subaps*2
 
             logger.info("WFS {0}: {1} measurements".format(nwfs,
-                     self.wfss[nwfs].activeSubaps*2))
+                     self.wfss[nwfs].n_subaps*2))
 
         # Init DMs
         logger.info("Initialising {0} DMs...".format(self.config.sim.nDM))
@@ -314,7 +318,7 @@ class Sim(object):
                 callback=self.addToGuiQueue, progressCallback=progressCallback)
         self.Timat+= time.time()-t
 
-    def runWfs_noMP(self, scrns = None, dmShape=None, wfsList=None,
+    def runWfs_noMP(self, scrns=None, dmShape=None, wfsList=None,
                     loopIter=None):
         """
         Runs all WFSs
@@ -339,7 +343,7 @@ class Sim(object):
 
         slopesSize = 0
         for nwfs in wfsList:
-            slopesSize+=self.wfss[nwfs].activeSubaps*2
+            slopesSize+=self.wfss[nwfs].n_subaps*2
         slopes = numpy.zeros( (slopesSize) )
 
         s = 0
@@ -354,10 +358,12 @@ class Sim(object):
                     read=True
             else:
                 read = True
+            wfs_phase = self.wfs_los[nwfs].frame(self.scrns, dmShape)
+            sl = self.wfss[nwfs].frame(wfs_phase, read=read)
 
-            slopes[s:s+self.wfss[nwfs].activeSubaps*2] = \
-                    self.wfss[nwfs].frame(self.scrns, dmShape, read=read)
-            s += self.wfss[nwfs].activeSubaps*2
+            slopes[s:s+self.wfss[nwfs].n_subaps*2] = sl
+
+            s += self.wfss[nwfs].n_subaps*2
 
         self.Twfs+=time.time()-t_wfs
         return slopes
@@ -390,7 +396,7 @@ class Sim(object):
 
         slopesSize = 0
         for nwfs in wfsList:
-            slopesSize+=self.wfss[nwfs].activeSubaps*2
+            slopesSize += self.wfss[nwfs].n_subaps*2
         slopes = numpy.zeros( (slopesSize) )
 
         wfsProcs = []
@@ -420,7 +426,7 @@ class Sim(object):
         for proc in xrange(len(wfsList)):
             nwfs = wfsList[proc]
 
-            (slopes[s:s+self.wfss[nwfs].activeSubaps*2],
+            (slopes[s:s+self.wfss[nwfs].n_subaps*2],
                     self.wfss[nwfs].wfsDetectorPlane,
                     self.wfss[nwfs].uncorrectedPhase,
                     lgsPsf) = wfsQueues[proc].get()
@@ -429,7 +435,7 @@ class Sim(object):
                 self.wfss[nwfs].LGS.psf1 = lgsPsf
 
             wfsProcs[proc].join()
-            s += self.wfss[nwfs].activeSubaps*2
+            s += self.wfss[nwfs].n_subaps*2
 
         self.Twfs+=time.time()-t_wfs
         return slopes
@@ -490,7 +496,7 @@ class Sim(object):
         """
         # Get next phase screens
         t = time.time()
-        self.scrns = self.atmos.moveScrns()
+        self.scrns = numpy.array(list(self.atmos.moveScrns().values()))
         self.Tatmos = time.time()-t
 
         # Run Loop...
@@ -929,9 +935,9 @@ class Sim(object):
                 wfsPhase = {}
                 lgsPsf = {}
                 for i in xrange(self.config.sim.nGS):
-                    wfsFocalPlane[i] = self.wfss[i].wfsDetectorPlane.copy().astype("float32")
+                    wfsFocalPlane[i] = self.wfss[i].detector.copy().astype("float32")
                     try:
-                        wfsPhase[i] = self.wfss[i].uncorrectedPhase
+                        wfsPhase[i] = self.wfs_los[i].output_phase
                     except AttributeError:
                         wfsPhase[i] = None
                         pass

@@ -75,7 +75,7 @@ class DM(object):
         self.simConfig = soapyConfig.sim
         self.dmConfig = soapyConfig.dms[nDm]
         self.wfss = wfss
-        self.wvl = wfss[0].config.wavelength
+        self.wvl = wfss[0].wavelength
 
         # If supplied use the mask
         if numpy.any(mask):

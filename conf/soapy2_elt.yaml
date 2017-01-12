@@ -1,8 +1,8 @@
 simName: Soapy2_ELT
 pupilSize: 592
 nGS: 1
-nDM: 1
-nSci: 1
+nDM: 0
+nSci: 0
 nIters: 5000
 loopTime: 0.00125
 reconstructor: "MVM"
@@ -49,7 +49,7 @@ Telescope:
 
 WFS:
   0:
-    type: ShackHartmann
+    type: ShackHartmann2
     GSPosition: [0, 0]
     GSHeight: 0
     GSMag: 8

@@ -474,7 +474,8 @@ class SimConfig(ConfigObj):
                             effects                             ``1.2``
         ``loopDelay``       int: loop delay in integer count
                             of ``loopTime``                     ``0``
-
+        ``threads``         int: Number of threads to use for
+                            multi-threaded operations           ``1``
 
         ==================  =================================   ===============
 
@@ -530,6 +531,7 @@ class SimConfig(ConfigObj):
                             ("learnAtmos", "random"),
                             ("simOversize", 1.2),
                             ("loopDelay", 0),
+                            ("threads", 1),
                         ]
 
     # Parameters which may be set at some point and are allowed

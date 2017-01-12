@@ -11,17 +11,19 @@ ASEC2RAD = (numpy.pi/(180 * 3600))
 
 class LineOfSight(object):
 
-    def __init__(self, los_config):
+    def __init__(self, obj_config, soapy_config):
 
-        self.direction = los_config.direction
-        self.n_layers = los_config.n_layers
-        self.layer_altitudes = los_config.layer_altitudes
-        self.src_altitude = los_config.src_altitude
-        self.phase_pxl_scale = los_config.phase_pxl_scale
-        self.pupil_size = los_config.pupil_size
-        self.nx_scrn_size = los_config.nx_scrn_size
+        self.direction = obj_config.position
+        self.src_altitude = obj_config.GSHeight
 
-        self.threads = los_config.threads
+        self.n_layers = soapy_config.atmos.scrnNo
+        self.layer_altitudes = soapy_config.atmos.scrnHeights
+
+        self.phase_pxl_scale = soapy_config.sim.pxlScale**(-1)
+        self.pupil_size = soapy_config.sim.pupilSize
+        self.nx_scrn_size = soapy_config.sim.scrnSize
+
+        self.threads = soapy_config.sim.threads
 
         # Calculate coords of phase at each altitude
         self.layer_metapupil_coords = numpy.zeros((self.n_layers, 2, self.pupil_size))
@@ -59,7 +61,7 @@ class LineOfSight(object):
     def propagate_light(self):
         self.output_phase = self.phase_screens.sum(0)
 
-    def frame(self, phase_screens):
+    def frame(self, phase_screens, phase_correction):
         self.raw_phase_screens = phase_screens
 
         self.get_phase_slices()

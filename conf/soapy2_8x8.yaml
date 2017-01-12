@@ -1,5 +1,5 @@
 simName: Soapy2_ELT
-pupilSize: 592
+pupilSize: 64
 nGS: 1
 nDM: 1
 nSci: 1
@@ -43,8 +43,8 @@ Atmosphere:
 
 
 Telescope:
-  telDiam: 39.
-  obsDiam: 8.
+  telDiam: 8.
+  obsDiam: 1.
   mask: circle
 
 WFS:
@@ -53,7 +53,7 @@ WFS:
     GSPosition: [0, 0]
     GSHeight: 0
     GSMag: 8
-    nxSubaps: 74
+    nxSubaps: 8
     pxlsPerSubap: 10
     subapFOV: 2.
     wavelength: 500e-9
@@ -63,7 +63,7 @@ DM:
 
     type: Piezo
     closed: True
-    nxActuators: 75
+    nxActuators: 9
     svdConditioning: 0.05
     gain: 0.7
     iMatValue: 500

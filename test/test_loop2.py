@@ -4,7 +4,7 @@ from soapy import loop
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../conf/")
 
-CONFIG = 'elt'
+CONFIG = '8x8'
 
 def test_init():
 
@@ -15,7 +15,7 @@ def test_loop_frame():
     sim = loop.Simulation("{}/soapy2_{}.yaml".format(CONFIG_PATH, CONFIG))
     sim.aoinit()
 
-    sim.loop_frame()
+    sim.loop_frame(0)
 
 def test_loop():
 
@@ -25,6 +25,7 @@ def test_loop():
     sim.loop()
 
 if __name__ == "__main__":
-    test_init()
-    test_loop_frame()
-    test_loop()
+    sim = loop.Simulation("{}/soapy2_{}.yaml".format(CONFIG_PATH, CONFIG))
+    sim.aoinit()
+
+    sim.loop()

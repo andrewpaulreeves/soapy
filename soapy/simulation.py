@@ -199,7 +199,7 @@ class Sim(object):
                                 self.config.wfss[wfs].type))
 
             self.wfss[nwfs] = wfsClass(
-                    self.config, nwfs, mask=self.mask)
+                    self.config, nwfs, mask=self.mask, los=self.wfs_los[nwfs])
 
             self.config.wfss[nwfs].dataStart = self.config.sim.totalWfsData
             self.config.sim.totalWfsData += self.wfss[nwfs].n_subaps*2

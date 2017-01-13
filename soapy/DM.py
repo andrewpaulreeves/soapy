@@ -104,7 +104,7 @@ class DM(object):
         # placeholder
         self.totalWfsMeasurements = 0
         for nWfs in range(len(self.wfss)):
-            self.totalWfsMeasurements += 2*self.wfss[nWfs].activeSubaps
+            self.totalWfsMeasurements += 2*self.wfss[nWfs].n_subaps
 
 
     def getActiveActs(self):
@@ -171,9 +171,10 @@ class DM(object):
                 logger.debug("subap: {}".format(subap))
 
                 # Send the DM shape off to the relavent WFS. put result in iMat
-                iMat[i, subap: subap + (2*self.wfss[nWfs].activeSubaps)] = (
-                       -1*self.wfss[nWfs].frame(
-                                None, correction=self.dmShape, iMatFrame=True))/self.dmConfig.iMatValue
+                wfs_phs = self.wfss[nWfs].los.frame(self.dmShape)
+
+                iMat[i, subap: subap + (2*self.wfss[nWfs].n_subaps)] = (
+                       -1*self.wfss[nWfs].frame(wfs_phs))/self.dmConfig.iMatValue
 
                 if callback != None:
                     callback()
@@ -181,7 +182,7 @@ class DM(object):
                 logger.statusMessage(i, self.acts,
                         "Generating {} Actuator DM iMat".format(self.acts))
 
-                subap += 2*self.wfss[nWfs].activeSubaps
+                subap += 2*self.wfss[nWfs].n_subaps
 
         self.iMat = iMat
         return iMat

@@ -61,7 +61,7 @@ class LineOfSight(object):
     def propagate_light(self):
         self.output_phase = self.phase_screens.sum(0)
 
-    def frame(self, phase_screens, phase_correction):
+    def frame(self, phase_screens, phase_correction=None):
         self.raw_phase_screens = phase_screens
 
         self.get_phase_slices()

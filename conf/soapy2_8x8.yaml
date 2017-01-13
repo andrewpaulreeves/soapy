@@ -1,8 +1,8 @@
 simName: Soapy2_ELT
 pupilSize: 64
 nGS: 1
-nDM: 0
-nSci: 0
+nDM: 1
+nSci: 1
 nIters: 5000
 loopTime: 0.00125
 reconstructor: "MVM"

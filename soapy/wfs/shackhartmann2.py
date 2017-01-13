@@ -24,9 +24,12 @@ class ShackHartmann2(object):
         soapy_config (SoapyConfig):
         wfs_index (int):
         mask (ndarray):
+        los (LineOfSight, optional): Corresponding Soapy Line of sight object. Can be given so its easier for other modules to retrieve it
 
     """
-    def __init__(self, soapy_config, wfs_index, mask):
+    def __init__(self, soapy_config, wfs_index, mask=None, los=None):
+
+        self.los = los
 
         # Get parameters from configuration
         # ---------------------------------

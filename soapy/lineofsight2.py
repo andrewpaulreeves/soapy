@@ -19,6 +19,9 @@ class LineOfSight(object):
         self.n_layers = soapy_config.atmos.scrnNo
         self.layer_altitudes = soapy_config.atmos.scrnHeights
 
+        self.n_dm = soapy_config.sim.nDM
+        self.dm_altitudes = [soapy_config.dms[i].altitude for i in range(soapy_config.sim.nDM)]
+
         self.phase_pxl_scale = soapy_config.sim.pxlScale**(-1)
         self.pupil_size = soapy_config.sim.pupilSize
         self.nx_scrn_size = soapy_config.sim.scrnSize
@@ -31,6 +34,13 @@ class LineOfSight(object):
             x1, x2, y1, y2 = self.calculate_altitude_coords(self.layer_altitudes[i])
             self.layer_metapupil_coords[i, 0] = numpy.linspace(x1, x2, self.pupil_size) + self.nx_scrn_size/2.
             self.layer_metapupil_coords[i, 1] = numpy.linspace(y1, y2, self.pupil_size) + self.nx_scrn_size/2.
+
+        # Calculate coords of phase at each DM altitude
+        self.dm_metapupil_coords = numpy.zeros((self.n_layers, 2, self.pupil_size))
+        for i in range(self.n_dm):
+            x1, x2, y1, y2 = self.calculate_altitude_coords(self.dm_altitudes[i])
+            self.dm_metapupil_coords[i, 0] = numpy.linspace(x1, x2, self.pupil_size) + self.nx_scrn_size/2.
+            self.dm_metapupil_coords[i, 1] = numpy.linspace(y1, y2, self.pupil_size) + self.nx_scrn_size/2.
 
         self.phase_screens = numpy.zeros((self.n_layers, self.pupil_size, self.pupil_size))
 
@@ -155,40 +165,5 @@ def bilinear_interp_numba(data, xCoords, yCoords, chunkIndices, interpArray):
     return interpArray
 
 
-class LOS_Config(object):
-    pass
 
 
-def loop_test(los, screens, N=1000):
-    t1 = time.time()
-
-    for i in range(N):
-        los.frame(screens)
-    t2 = time.time()
-
-    f_time = (t2 - t1)/N
-    print("Frame runs in {:.2f}ms".format(f_time*1000))
-    print("Iters per second: {:2.2f}".format(1./f_time))
-
-
-if __name__ == "__main__":
-    los_config = LOS_Config()
-
-    los_config.pupil_size = 640
-    los_config.phase_pxl_scale = 38./los_config.pupil_size
-    los_config.n_layers = 37
-    los_config.layer_altitudes = numpy.linspace(0, 20, los_config.n_layers)
-    los_config.direction = (10, 10)
-    los_config.src_altitude = 0
-    los_config.nx_scrn_size = 800
-
-    los_config.threads = 4
-
-    # some example phase screen
-
-    phase_screens = numpy.ones((los_config.n_layers, los_config.nx_scrn_size, los_config.nx_scrn_size), dtype="float32")
-
-    los = LineOfSight(los_config)
-    phs_out = los.frame(phase_screens)
-
-    loop_test(los, phase_screens, 100)

@@ -6,7 +6,7 @@ nSci: 0
 nIters: 5000
 loopTime: 0.00125
 reconstructor: "MVM"
-threads: 1
+threads: 4
 
 verbosity: 2
 

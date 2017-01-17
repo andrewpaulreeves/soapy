@@ -338,7 +338,6 @@ class Piezo(DM):
                     shapes, ((0,0), (pad,pad), (pad,pad)), mode="constant"
                     ).astype("float32")
 
-
 class GaussStack(Piezo):
     """
     A Stack Array DM where each influence function is a 2-D Gaussian shape.

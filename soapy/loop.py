@@ -2,34 +2,16 @@ import time
 
 import numpy
 
-from . import simulation, sh_wfs, lineofsight2
+from . import simulation, lineofsight2
+from .wfs import ShackHartmann2
 
 class Simulation(simulation.Sim):
 
     def aoinit(self):
         super(Simulation, self).aoinit()
 
-        wfs_config = sh_wfs.WFS_Config()
 
-        wfs_config.pupil_size = self.config.sim.pupilSize
 
-        wfs_config.telescope_diameter = self.config.tel.telDiam
-        wfs_config.nx_subaps = self.config.wfss[0].nxSubaps
-        wfs_config.subap_diam = wfs_config.telescope_diameter / wfs_config.nx_subaps
-        wfs_config.pxl_scale = self.config.wfss[0].subapFOV/self.config.wfss[0].pxlsPerSubap
-        wfs_config.nx_subap_pxls = self.config.wfss[0].pxlsPerSubap
-        wfs_config.wavelength = self.config.wfss[0].wavelength
-        wfs_config.subap_threshold = self.config.wfss[0].subapThreshold
-        wfs_config.mask = self.mask[self.config.sim.simPad:-self.config.sim.simPad, self.config.sim.simPad: -self.config.sim.simPad]
-
-        wfs_config.phase_pxl_scale = wfs_config.telescope_diameter / wfs_config.pupil_size
-        wfs_config.n_layers = self.config.atmos.scrnNo
-        wfs_config.layer_altitudes = self.config.atmos.scrnHeights
-        wfs_config.direction = self.config.wfss[0].GSPosition
-        wfs_config.src_altitude = self.config.wfss[0].GSHeight
-        wfs_config.nx_scrn_size = self.config.sim.scrnSize
-
-        wfs_config.threads = 4
 
         self.sh = sh_wfs.ShackHartmann(wfs_config)
 

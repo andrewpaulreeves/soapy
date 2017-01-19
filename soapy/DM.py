@@ -219,7 +219,7 @@ class DM(object):
         self.dmShape = self.makeDMFrame(self.actCoeffs)
         # Remove any piston term from DM
         self.dmShape -= self.dmShape.mean()
-        
+
         return self.dmShape
 
     def makeDMFrame(self, actCoeffs):

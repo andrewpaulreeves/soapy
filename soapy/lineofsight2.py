@@ -1,13 +1,12 @@
 from threading import Thread
+from queue import Queue
 import multiprocessing
 N_CPU = multiprocessing.cpu_count()
-import time
 
 import numpy
 import numba
 
 ASEC2RAD = (numpy.pi/(180 * 3600))
-
 
 class LineOfSight(object):
 
@@ -91,7 +90,7 @@ def get_phase_slices(raw_phase_screens, layer_metapupil_coords, phase_screens, t
         bilinear_interp(raw_phase_screens[i], layer_metapupil_coords[i, 0], layer_metapupil_coords[i, 1], phase_screens[i], threads)
 
 
-def bilinear_interp(data, xCoords, yCoords, interpArray, threads=None):
+def bilinear_interp_notb(data, xCoords, yCoords, interpArray, threads=None):
     """
     A function which deals with threaded numba interpolation.
 
@@ -109,6 +108,7 @@ def bilinear_interp(data, xCoords, yCoords, interpArray, threads=None):
 
     Ts = []
     for t in range(threads):
+
         Ts.append(Thread(target=bilinear_interp_numba,
                          args=(
                              data, xCoords, yCoords,
@@ -120,6 +120,45 @@ def bilinear_interp(data, xCoords, yCoords, interpArray, threads=None):
     for T in Ts:
         T.join()
 
+    return interpArray
+
+def bilinear_interp(data, xCoords, yCoords, interpArray, threads=None):
+    """
+    A function which deals with threaded numba interpolation.
+
+    Parameters:
+        array (ndarray): The 2-D array to interpolate
+        xCoords (ndarray): A 1-D array of x-coordinates
+        yCoords (ndarray): A 2-D array of y-coordinates
+        interpArray (ndarray): The array to place the calculation
+        threads (int): Number of threads to use for calculation
+
+    Returns:
+        interpArray (ndarray): A pointer to the calculated ``interpArray''
+    """
+    nx = xCoords.shape[0]
+
+    Ts = []
+    tc_Qs = []
+    for t in range(threads):
+        tc_Q = Queue()
+        tc_Qs.append(tc_Q)
+        Ts.append(Thread(target=run_threaded_func,
+                         args=(bilinear_interp_numba,
+                               (data, xCoords, yCoords,
+                             numpy.array([int(t * nx / threads), int((t + 1) * nx / threads)]),
+                             interpArray), tc_Q)
+                         ))
+        Ts[t].start()
+
+    for T in Ts:
+        T.join()
+
+    # Check for errors:
+    for n_t, tc_Q in enumerate(tc_Qs):
+        potential_exception = tc_Q.get()
+        if potential_exception!=False:
+            raise potential_exception
     return interpArray
 
 @numba.jit(nopython=True, nogil=True)
@@ -161,8 +200,24 @@ def bilinear_interp_numba(data, xCoords, yCoords, chunkIndices, interpArray):
 
             yGrad = a2 - a1
             interpArray[i, j] = a1 + yGrad * (y - y1)
-
     return interpArray
+
+def run_threaded_func(func, args, traceback_queue):
+    """
+    Runs a function and sends any potential errors down a queue to be checked later.
+    If no tracebacks caused, sends `False` down Queue
+
+    Parameters:
+            func (function): Function to run
+            args (tuple): Arguments to give to function
+            traceback_queue (Queue): python queue.Queue object to send traceback.
+    """
+    try:
+        func(*args)
+        traceback_queue.put(False)
+    except Exception as exc:
+        traceback_queue.put(exc)
+
 
 
 

@@ -50,6 +50,7 @@ class ShackHartmann2(object):
         self.nx_subap_pxls = wfs_config.pxlsPerSubap
         self.subap_threshold = wfs_config.subapThreshold
 
+
         # Calculate some parameters
         # -------------------------
         self.pxl_scale = self.subap_fov/self.nx_subap_pxls
@@ -68,6 +69,7 @@ class ShackHartmann2(object):
 
         self.n_subaps = self.subap_positions.shape[0]
         self.nx_subap_size = float(self.pupil_size)/self.nx_subaps # Subap diameter in phase elements
+        self.n_measurements = self.n_subaps * 2 # Number of total measurements
 
         # size of each sub-ap before FFT
         self.nx_subap_interp = int(round(
@@ -103,22 +105,8 @@ class ShackHartmann2(object):
         # Number of pixels on detector
         self.nx_detector_pxls = self.nx_subaps * self.nx_subap_pxls
 
-        # coordinates of where to put sub-aps on the detector
-        # X, Y = numpy.meshgrid(
-        #         numpy.arange(0, self.nx_detector_pxls, self.nx_subap_pxls),
-        #         numpy.arange(0, self.nx_detector_pxls, self.nx_subap_pxls))
-        # self.subap_detector_pos = numpy.array([
-        #         X.flatten(), X.flatten() + self.nx_subap_pxls,
-        #         Y.flatten(), Y.flatten() + self.nx_subap_pxls]).T
-
         # init a centroider
         self.centroider = Centroider(self.n_subaps, self.nx_subap_pxls, threads=self.threads)
-
-        # Coordinates to use to get subaps from detector_bin_ratio
-        # X, Y = numpy.meshgrid(
-        #         numpy.arange(0, self.nx_detector_pxls, self.nx_subap_pxls),
-        #         numpy.arange(0, self.nx_detector_pxls, self.nx_subap_pxls))
-        # self.slope_calc_coords = numpy.array([X.flatten(), Y.flatten()]).T
 
         # Calculate a tilt required to centre the spots
         self.tilt_fix = self.calculate_tilt_correction()

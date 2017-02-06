@@ -16,13 +16,15 @@
 #     You should have received a copy of the GNU General Public License
 #     along with soapy.  If not, see <http://www.gnu.org/licenses/>.
 
-import numpy
-import scipy
-from . import logger
 import traceback
 import sys
 import time
 
+import numpy
+import scipy
+from scipy.ndimage.interpolation import rotate
+
+from . import logger
 
 #Use pyfits or astropy for fits file handling
 try:
@@ -41,6 +43,9 @@ except NameError:
     xrange = range
 
 class Reconstructor(object):
+    """
+    Reconstructor that will give DM commands required to correct an AO frame for a given set of WFS measurements
+    """
     def __init__(self, soapyConfig, dms, wfss, atmos, runWfsFunc=None):
 
 
@@ -83,6 +88,9 @@ class Reconstructor(object):
             self.simConfig.totalWfsData, self.simConfig.totalActs)
 
     def saveCMat(self):
+        """
+        Writes the current control Matrix to FITS file
+        """
         filename = self.simConfig.simName+"/cMat.fits"
 
         fits.writeto(
@@ -90,6 +98,12 @@ class Reconstructor(object):
                 header=self.simConfig.saveHeader, clobber=True)
 
     def loadCMat(self):
+        """
+        Loads a control matrix from file to the reconstructor
+
+        Looks in the standard reconstructor directory for a control matrix and loads the file.
+        Also looks at the FITS header and checks that the control matrix is compatible with the current simulation.
+        """
 
         filename = self.simConfig.simName+"/cMat.fits"
 
@@ -177,7 +191,7 @@ class Reconstructor(object):
                 pass
 
 
-            if iMat.shape != (self.dms[dm].acts, self.dms[dm].totalWfsMeasurements):
+            if iMat.shape != (self.dms[dm].n_acts, self.dms[dm].totalWfsMeasurements):
                 logger.warning(
                     "interaction matrix does not match required required size."
                     )
@@ -185,16 +199,59 @@ class Reconstructor(object):
 
             else:
                 self.dms[dm].iMat = iMat
-                self.iMat[acts:acts+self.dms[dm].acts] = self.dms[dm].iMat
-                acts += self.dms[dm].acts
+                self.iMat[acts:acts+self.dms[dm].n_acts] = self.dms[dm].iMat
+                acts += self.dms[dm].n_acts
 
 
 
-    def makeIMat(self, callback, progressCallback):
+    def makeIMat(self, callback):
 
         for dm in xrange(self.simConfig.nDM):
             logger.info("Creating Interaction Matrix on DM %d..." % dm)
             self.dms[dm].makeIMat(callback=callback)
+
+    def make_dm_iMat(self, dm, wfs, callback=None):
+        """
+        Makes an interaction matrix for a given DM with a given WFS
+
+        Parameters:
+            dm (DM): The Soapy DM for which an interaction matri is required.
+            wfs (WFS): The Soapy WFS for which an interaction matrix is required
+            callback (func, optional): A function to be called each iteration accepting no arguments
+        """
+
+        iMat = numpy.zeros(
+            (dm.n_acts, wfs.n_measurements))
+
+        # A vector of DM commands to use when making the iMat
+        actCommands = numpy.zeros(dm.n_acts)
+
+        # Blank phase to use whilst making iMat
+        phase = numpy.zeros((self.simConfig.nDM, self.simConfig.simSize, self.simConfig.simSize))
+        for i in xrange(dm.n_acts):
+            # Set vector of iMat commands to 0...
+            actCommands[:] = 0
+
+            # Except the one we want to make an iMat for!
+            actCommands[i] = dm.dmConfig.iMatValue
+
+            # Now get a DM shape for that command
+            phase[dm.n_dm] = dm.makeDMFrame(actCommands)
+
+            # Send the DM shape off to the relavent WFS. put result in iMat
+            wfs_phs = wfs.los.frame(phase)
+
+            iMat[i] = (
+                    -1 * wfs.frame(wfs_phs)) / dm.dmConfig.iMatValue
+
+            if callback != None:
+                callback()
+
+            logger.statusMessage(i, dm.n_acts,
+                                 "Generating {} Actuator DM iMat".format(dm.n_acts))
+
+        return iMat
+
 
     def makeCMat(
             self, loadIMat=True, loadCMat=True, callback=None,
@@ -240,7 +297,7 @@ class Reconstructor(object):
 
 
     def reconstruct(self,slopes):
-        t=time.time()
+        t = time.time()
 
         dmCommands = self.controlMatrix.T.dot(slopes)
 
@@ -262,8 +319,8 @@ class MVM(Reconstructor):
         acts = 0
         self.iMat = numpy.empty_like(self.controlMatrix.T)
         for dm in xrange(self.simConfig.nDM):
-            self.iMat[acts:acts+self.dms[dm].acts] = self.dms[dm].iMat
-            acts+=self.dms[dm].acts
+            self.iMat[acts:acts+self.dms[dm].n_acts] = self.dms[dm].iMat
+            acts+=self.dms[dm].n_acts
 
         logger.info("Invert iMat with cond: {}".format(
                 self.dms[dm].dmConfig.svdConditioning))
@@ -297,9 +354,9 @@ class MVM_SeparateDMs(Reconstructor):
                 self.controlMatrix[
                         wfs.config.dataStart:
                                 wfs.config.dataStart + 2*wfs.activeSubaps,
-                        acts:acts+self.dms[dm].acts] = dmCMat
+                        acts:acts+self.dms[dm].n_acts] = dmCMat
 
-            acts += self.dms[dm].acts
+            acts += self.dms[dm].n_acts
 
     def reconstruct(self, slopes):
         """
@@ -699,14 +756,14 @@ class WooferTweeter(Reconstructor):
                                     dmIMat, self.dms[dm].dmConfig.svdConditioning)
 
             #if dm != self.simConfig.nDM-1:
-            #    self.controlMatrix[:,acts:acts+self.dms[dm].acts] = dmCMat
-            #    acts+=self.dms[dm].acts
+            #    self.controlMatrix[:,acts:acts+self.dms[dm].n_acts] = dmCMat
+            #    acts+=self.dms[dm].n_acts
 
             dmCMats.append(dmCMat)
 
 
-        self.controlMatrix[:, 0:self.dms[0].acts]
-        acts = self.dms[0].acts
+        self.controlMatrix[:, 0:self.dms[0].n_acts]
+        acts = self.dms[0].n_acts
         for dm in range(1, self.simConfig.nDM):
 
             #This is the matrix which converts from Low order DM commands
@@ -718,8 +775,8 @@ class WooferTweeter(Reconstructor):
 
             dmCMats[dm] = highOrderCMat
 
-            self.controlMatrix[:,acts:acts+self.dms[dm].acts] = highOrderCMat.T
-            acts += self.dms[dm].acts
+            self.controlMatrix[:,acts:acts+self.dms[dm].n_acts] = highOrderCMat.T
+            acts += self.dms[dm].n_acts
 
 
 class LgsTT(LearnAndApply):
@@ -845,8 +902,8 @@ class ANN(Reconstructor):
             else:
                 dmCMat = numpy.linalg.pinv(dmIMat, self.dmConds[dm])
 
-            self.controlMatrix[:,acts:acts+self.dms[dm].acts] = dmCMat
-            acts += self.dms[dm].acts
+            self.controlMatrix[:,acts:acts+self.dms[dm].n_acts] = dmCMat
+            acts += self.dms[dm].n_acts
 
     def reconstruct(self, slopes):
         """

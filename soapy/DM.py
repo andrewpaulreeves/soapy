@@ -69,13 +69,14 @@ class DM(object):
         mask (ndarray, optional): An array or size (simConfig.simSize, simConfig.simSize) which is 1 at the telescope aperture and 0 else-where. If None then a circle is generated.
     """
 
-    def __init__ (self, soapyConfig, nDm=0, wfss=None, mask=None):
+    def __init__ (self, soapyConfig, n_dm=0, wfss=None, mask=None):
         
         self.soapyConfig = soapyConfig
         self.simConfig = soapyConfig.sim
-        self.dmConfig = soapyConfig.dms[nDm]
+        self.dmConfig = soapyConfig.dms[n_dm]
         self.wfss = wfss
         self.wvl = wfss[0].wavelength
+        self.n_dm = n_dm
 
         # If supplied use the mask
         if numpy.any(mask):
@@ -86,8 +87,8 @@ class DM(object):
                     self.simConfig.pupilSize/2., self.simConfig.simSize,
                     )
 
-        self.acts = self.getActiveActs()
-        self.actCoeffs = numpy.zeros( (self.acts) )
+        self.n_acts = self.getActiveActs()
+        self.actCoeffs = numpy.zeros( (self.n_acts) )
 
         # Sort out which WFS(s) observes the DM (for iMat making)
         if self.dmConfig.wfs!=None:
@@ -106,6 +107,20 @@ class DM(object):
         for nWfs in range(len(self.wfss)):
             self.totalWfsMeasurements += 2*self.wfss[nWfs].n_subaps
 
+        logger.info("Making DM Influence Functions...")
+        self.makeIMatShapes()
+        if self.dmConfig.rotation:
+            self.iMatShapes = rotate(
+                self.iMatShapes, self.dmConfig.rotation,
+                order=self.dmConfig.interpOrder, axes=(-2, -1)
+            )
+            rotShape = self.iMatShapes.shape
+            self.iMatShapes = self.iMatShapes[:,
+                              rotShape[1] / 2. - self.simConfig.simSize / 2.:
+                              rotShape[1] / 2. + self.simConfig.simSize / 2.,
+                              rotShape[2] / 2. - self.simConfig.simSize / 2.:
+                              rotShape[2] / 2. + self.simConfig.simSize / 2.
+                              ]
 
     def getActiveActs(self):
         """
@@ -131,8 +146,7 @@ class DM(object):
         Returns:
             ndarray: 2-dimensional interaction matrix
         '''
-        logger.info("Making DM Influence Functions...")
-        self.makeIMatShapes()
+
 
         # Imat value is in microns
         # self.iMatShapes *= (self.dmConfig.iMatValue)
@@ -151,14 +165,14 @@ class DM(object):
                     ]
 
         iMat = numpy.zeros(
-                (self.acts, self.totalWfsMeasurements))
+                (self.n_acts, self.totalWfsMeasurements))
 
         # A vector of DM commands to use when making the iMat
-        actCommands = numpy.zeros(self.acts)
+        actCommands = numpy.zeros(self.n_acts)
  
         # Blank phase to use whilst making iMat
         phs = numpy.zeros((self.simConfig.simSize, self.simConfig.simSize))
-        for i in xrange(self.acts):
+        for i in xrange(self.n_acts):
             subap = 0
 
             # Set vector of iMat commands to 0...
@@ -179,8 +193,8 @@ class DM(object):
                 if callback != None:
                     callback()
 
-                logger.statusMessage(i, self.acts,
-                        "Generating {} Actuator DM iMat".format(self.acts))
+                logger.statusMessage(i, self.n_acts,
+                        "Generating {} Actuator DM iMat".format(self.n_acts))
 
                 subap += 2*self.wfss[nWfs].n_subaps
 
@@ -248,7 +262,7 @@ class Zernike(DM):
         '''
 
         shapes = circle.zernikeArray(
-                int(self.acts + 1), int(self.simConfig.pupilSize))[1:]
+                int(self.n_acts + 1), int(self.simConfig.pupilSize))[1:]
 
 
         pad = self.simConfig.simPad
@@ -309,9 +323,9 @@ class Piezo(DM):
         #side
         dmSize =  int(self.simConfig.pupilSize + 2 * numpy.round(self.spcing))
 
-        shapes = numpy.zeros((int(self.acts), dmSize, dmSize), dtype="float32")
+        shapes = numpy.zeros((int(self.n_acts), dmSize, dmSize), dtype="float32")
 
-        for i in xrange(self.acts):
+        for i in xrange(self.n_acts):
             x,y = self.activeActs[i]
 
             #Add one to avoid the outer padding
@@ -356,12 +370,12 @@ class GaussStack(Piezo):
         guassian is determined from the configuration file.
         """
         shapes = numpy.zeros((
-                self.acts, self.simConfig.pupilSize, self.simConfig.pupilSize))
+                self.n_acts, self.simConfig.pupilSize, self.simConfig.pupilSize))
 
         actSpacing = self.simConfig.pupilSize/(self.dmConfig.nxActuators-1)
         width = actSpacing/2.
 
-        for i in xrange(self.acts):
+        for i in xrange(self.n_acts):
             x,y = self.activeActs[i]*actSpacing
             shapes[i] = circle.gaussian2d(
                     self.simConfig.pupilSize, width, cent = (x,y))

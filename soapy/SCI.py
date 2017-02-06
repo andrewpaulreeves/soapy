@@ -18,9 +18,12 @@
 
 import numpy
 import scipy.optimize as opt
+import pyfftw
 
 from . import AOFFT, logger, lineofsight
 from .aotools import circle, interp
+from . import numbalib
+
 DTYPE = numpy.float32
 CDTYPE = numpy.complex64
 
@@ -203,3 +206,93 @@ class singleModeFibre(PSF):
 
 # Compatability with older versions
 scienceCam = ScienceCam = PSF
+
+
+class PSF2(object):
+    def __init__(self, soapy_config, sci_index, mask=None, los=None):
+
+        self.los = los
+
+        # Get parameters from configuration
+        # ---------------------------------
+        self.sci_config = soapy_config.scis[sci_index]
+
+        self.pupil_size = soapy_config.sim.pupilSize
+        self.threads = soapy_config.sim.threads
+
+        self.mask = mask[
+                    soapy_config.sim.simPad:-soapy_config.sim.simPad,
+                    soapy_config.sim.simPad:-soapy_config.sim.simPad
+                    ]
+        self.telescope_diameter = soapy_config.tel.telDiam
+        self.pxl_scale = self.sci_config.pxlScale
+        self.wavelength = self.sci_config.wavelength
+        self.nx_detector_pixels = self.sci_config.pxls
+
+        # Calculate some parameters
+        # The required size of the phase to get the correct FOV out of the FFT
+        self.nx_interp_phase = int(round(
+                self.pxl_scale * self.pupil_size * (numpy.pi/(180*3600)) * self.telescope_diameter
+                / self.wavelength))
+
+        # Find first multiple of detector pixels bigger than nx_subap_interp
+        self.detector_bin_ratio = 1
+        self.nx_focus_efield = 1
+        while self.nx_focus_efield < self.nx_interp_phase:
+            self.detector_bin_ratio += 1
+            self.nx_focus_efield = self.nx_detector_pixels * self.detector_bin_ratio
+        print("Set detector bin ratio to {}, nx_subap_focus_efield: {}".format(
+            self.detector_bin_ratio, self.nx_focus_efield))
+
+        # Find rad to nm conversion
+        self.nm_to_rad = 1e-9 * (2 * numpy.pi) / self.wavelength
+
+        # Allocate some data arrays
+        self.focus = numpy.zeros((self.nx_focus_efield, self.nx_focus_efield), dtype="float32")
+        self.detector = numpy.zeros((self.nx_detector_pixels, self.nx_detector_pixels))
+        self.interp_phase = numpy.zeros((self.nx_interp_phase, self.nx_interp_phase), dtype="float32")
+
+        # Initialise the FFT
+        self.interp_efield = pyfftw.zeros_aligned(
+                (self.nx_focus_efield, self.nx_focus_efield), dtype="complex64")
+        self.focus_efield = self.interp_efield.copy()
+        self.fft = pyfftw.FFTW(
+                self.interp_efield, self.focus_efield, threads=self.threads,
+                axes=(0, 1))
+
+        self.strehl_reference = 1
+        self.strehl_reference = self.frame(
+                numpy.ones((self.pupil_size, self.pupil_size))).max()
+
+    def interp_to_size(self):
+
+        # Convert to rad
+        self.phase *= self.nm_to_rad
+        print("Interp_to_size")
+        numbalib.zoom(self.phase, self.interp_phase, threads=self.threads)
+
+
+    def calculate_focal_plane(self):
+
+        self.interp_efield[:self.nx_interp_phase, :self.nx_interp_phase] = numpy.exp(1j * self.interp_phase)
+        self.fft()
+        print("Abs squared")
+        numbalib.abs_squared(self.focus_efield, self.focus)
+        self.focus = numpy.fft.fftshift(self.focus)
+
+        print("Bin")
+        numbalib.bin_img_slow(self.focus, self.detector_bin_ratio, self.detector)
+
+    def calculate_strehl(self):
+        self.instStrehl = self.detector.max() / self.strehl_reference
+
+    def frame(self, phase):
+
+        self.phase = phase
+
+        self.interp_to_size()
+        self.calculate_focal_plane()
+
+        self.calculate_strehl()
+
+        return self.detector

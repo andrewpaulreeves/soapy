@@ -248,19 +248,23 @@ class Sim(object):
 
         # Init Science Cameras
         logger.info("Initialising {0} Science Cams...".format(self.config.sim.nSci))
+        self.sci_los = {}
         self.sciCams = {}
         self.sciImgs = {}
         self.sciImgNo=0
-        for nSci in xrange(self.config.sim.nSci):
+        for sci_n in xrange(self.config.sim.nSci):
+            self.sci_los[sci_n] = lineofsight2.LineOfSight(
+                    self.config.scis[0], self.config)
             try:
-                sciObj = getattr(SCI, self.config.scis[nSci].type)
+                sciObj = getattr(SCI, self.config.scis[sci_n].type)
             except AttributeError:
                 raise confParse.ConfigurationError("No science camera of type {} found".format(self.config.scis[nSci].type))
-            self.sciCams[nSci] = sciObj(
-                        self.config, nSci=nSci, mask=self.mask
+
+            self.sciCams[sci_n] = sciObj(
+                        self.config, sci_index=sci_n, mask=self.mask, los=self.sci_los[sci_n]
                         )
 
-            self.sciImgs[nSci] = numpy.zeros( [self.config.scis[nSci].pxls]*2 )
+            self.sciImgs[sci_n] = numpy.zeros( [self.config.scis[sci_n].pxls]*2 )
 
 
         # Init data storage
@@ -477,14 +481,15 @@ class Sim(object):
 
         self.sciImgNo +=1
         for sci in xrange(self.config.sim.nSci):
-            self.sciImgs[sci] += self.sciCams[sci].frame(self.scrns, dmShape)
+            sci_phase = self.sci_los[sci].frame(self.scrns, dmShape)
+            self.sciImgs[sci] += self.sciCams[sci].frame(sci_phase)
 
             # Normalise long exposure psf
             #self.sciImgs[sci] /= self.sciImgs[sci].sum()
             self.sciCams[sci].longExpStrehl = (
                     self.sciImgs[sci].max()/
                     self.sciImgs[sci].sum()/
-                    self.sciCams[sci].psfMax)
+                    self.sciCams[sci].strehl_reference)
 
         self.Tsci +=time.time()-t
 
@@ -711,15 +716,16 @@ class Sim(object):
                 self.longStrehl[sci,i] = self.sciCams[sci].longExpStrehl
 
                 # Record WFE residual
-                res = self.sciCams[sci].los.residual
+                res = self.sciCams[sci].los.output_phase
                 # Remove piston first
-                res -= res.sum()/self.mask.sum()
-                res *= self.mask
+                p = self.config.sim.simPad
+                res -= res.sum()/self.mask[p:-p, p:-p].sum()
+                res *= self.mask[p:-p, p:-p]
                 self.WFE[sci,i] =  numpy.sqrt(numpy.mean(numpy.square(res)))
 
             if self.config.sim.saveSciRes:
                 for sci in xrange(self.config.sim.nSci):
-                    self.sciPhase[sci][i] = self.sciCams[sci].residual
+                    self.sciPhase[sci][i] = self.sciCams[sci].output_phase
 
         if self.config.sim.simName!=None:
             if self.config.sim.saveWfsFrames:
@@ -974,7 +980,8 @@ class Sim(object):
                         instSciImg[i] = None
 
                     try:
-                        residual[i] = self.sciCams[i].los.residual.copy()*self.mask
+                        p = self.config.sim.simPad
+                        residual[i] = self.sciCams[i].los.output_phase.copy()*self.mask[p:-p, p:-p]
                     except AttributeError:
                         residual[i] = None
 

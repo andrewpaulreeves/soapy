@@ -268,7 +268,7 @@ class PSF2(object):
 
         # Convert to rad
         self.phase *= self.nm_to_rad
-        print("Interp_to_size")
+        # print("Interp_to_size")
         numbalib.zoom(self.phase, self.interp_phase, threads=self.threads)
 
 
@@ -276,11 +276,11 @@ class PSF2(object):
 
         self.interp_efield[:self.nx_interp_phase, :self.nx_interp_phase] = numpy.exp(1j * self.interp_phase)
         self.fft()
-        print("Abs squared")
+        # print("Abs squared")
         numbalib.abs_squared(self.focus_efield, self.focus)
         self.focus = numpy.fft.fftshift(self.focus)
 
-        print("Bin")
+        # print("Bin")
         numbalib.bin_img_slow(self.focus, self.detector_bin_ratio, self.detector)
 
     def calculate_strehl(self):

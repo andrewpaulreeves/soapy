@@ -744,7 +744,8 @@ class WfsConfig(ConfigObj):
                         ("extendedObject", None),
                         ("pxlsPerSubap", 10),
                         ("subapFOV", 5),
-                        ("correlationFFTPad", None)
+                        ("correlationFFTPad", None),
+                        ("source_altitude", 0),
                         ]
 
         # Parameters which may be Set at some point and are allowed
@@ -764,7 +765,7 @@ class WfsConfig(ConfigObj):
         # Set some parameters to correct type
         self.GSPosition = numpy.array(self.GSPosition)
         self.position = self.GSPosition # For compatability
-
+        self.source_altitude = self.GSHeight
         # Ensure wavelength is a float
         self.wavelength = float(self.wavelength)
 
@@ -1004,7 +1005,8 @@ class SciConfig(ConfigObj):
         ``instStrehlWithTT`` bool: Whether or not to include
                              tip/tilt in instantaneous Strehl
                              calculations.                       ``False``
-
+        ``source_altitude``  float: Altitude of source
+                             observed.                            ``0``
         ==================== =================================   ===========
 
     """
@@ -1022,7 +1024,8 @@ class SciConfig(ConfigObj):
                         ("fftwThreads", 1),
                         ("instStrehlWithTT", False),
                         ("height", 0),
-                        ("propagationMode", "Geometric")
+                        ("propagationMode", "Geometric"),
+                        ("source_altitude", 0)
                         ]
 
     calculatedParams = [

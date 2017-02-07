@@ -164,7 +164,7 @@ class Reconstructor(object):
 
     def loadIMat(self):
         acts = 0
-        self.iMat = numpy.empty_like(self.controlMatrix.T)
+        self.interaction_matrix = numpy.empty_like(self.controlMatrix.T)
         for dm in xrange(self.simConfig.nDM):
             logger.statusMessage(
                     dm,  self.simConfig.nDM-1, "Load DM Interaction Matrix")
@@ -199,16 +199,24 @@ class Reconstructor(object):
 
             else:
                 self.dms[dm].iMat = iMat
-                self.iMat[acts:acts+self.dms[dm].n_acts] = self.dms[dm].iMat
+                self.interaction_matrix[acts:acts+self.dms[dm].n_acts] = self.dms[dm].iMat
                 acts += self.dms[dm].n_acts
 
 
 
-    def makeIMat(self, callback):
+    def makeIMat(self, callback=None):
 
-        for dm in xrange(self.simConfig.nDM):
-            logger.info("Creating Interaction Matrix on DM %d..." % dm)
-            self.dms[dm].makeIMat(callback=callback)
+        self.interaction_matrix = numpy.zeros((self.simConfig.totalActs, self.simConfig.totalWfsData))
+
+        n_acts = 0
+        n_wfs_measurments = 0
+        for dm_n, dm in self.dms.items():
+            for wfs_n, wfs in self.wfss.items():
+                logger.info("Creating Interaction Matrix beteen DM %d and WFS %d..." % (dm_n, wfs_n))
+                self.interaction_matrix[
+                        n_acts: n_acts+dm.n_acts, n_wfs_measurments: n_wfs_measurments+wfs.n_measurements
+                        ] = self.make_dm_iMat(dm,  wfs, callback=callback)
+
 
     def make_dm_iMat(self, dm, wfs, callback=None):
         """
@@ -237,7 +245,6 @@ class Reconstructor(object):
 
             # Now get a DM shape for that command
             phase[dm.n_dm] = dm.makeDMFrame(actCommands)
-
             # Send the DM shape off to the relavent WFS. put result in iMat
             wfs_phs = wfs.los.frame(phase)
 
@@ -264,14 +271,13 @@ class Reconstructor(object):
             except IOError:
                 #traceback.print_exc()
                 logger.info("Load Interaction Matrices failed - will create new one.")
-                self.makeIMat(callback=callback,
-                         progressCallback=progressCallback)
+                self.makeIMat(callback=callback)
                 if self.simConfig.simName is not None:
                     self.saveIMat()
                 logger.info("Interaction Matrices Done")
 
         else:
-            self.makeIMat(callback=callback, progressCallback=progressCallback)
+            self.makeIMat(callback=callback)
             if self.simConfig.simName is not None:
                     self.saveIMat()
             logger.info("Interaction Matrices Done")
@@ -316,16 +322,11 @@ class MVM(Reconstructor):
         Uses DM object makeIMat methods, then inverts each to create a
         control matrix
         '''
-        acts = 0
-        self.iMat = numpy.empty_like(self.controlMatrix.T)
-        for dm in xrange(self.simConfig.nDM):
-            self.iMat[acts:acts+self.dms[dm].n_acts] = self.dms[dm].iMat
-            acts+=self.dms[dm].n_acts
 
         logger.info("Invert iMat with cond: {}".format(
-                self.dms[dm].dmConfig.svdConditioning))
+                self.dms[0].dmConfig.svdConditioning))
         self.controlMatrix[:] = scipy.linalg.pinv(
-                self.iMat, self.dms[dm].dmConfig.svdConditioning
+                self.interaction_matrix, self.dms[0].dmConfig.svdConditioning
                 )
 
 

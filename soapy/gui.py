@@ -528,7 +528,7 @@ class GUI(QtWidgets.QMainWindow):
 
         if running == False:
 
-            self.plotPupilOverlap()
+            # self.plotPupilOverlap()
             print("making IMat")
             self.ui.progressLabel.setText("Generating DM Shapes...")
             self.ui.progressBar.setValue(10)

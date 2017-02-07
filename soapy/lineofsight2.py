@@ -13,7 +13,7 @@ class LineOfSight(object):
     def __init__(self, obj_config, soapy_config):
 
         self.direction = obj_config.position
-        self.src_altitude = obj_config.GSHeight
+        self.src_altitude = obj_config.source_altitude
 
         self.n_layers = soapy_config.atmos.scrnNo
         self.layer_altitudes = soapy_config.atmos.scrnHeights
@@ -73,7 +73,10 @@ class LineOfSight(object):
     def frame(self, phase_screens, phase_correction=None):
         self.raw_phase_screens = phase_screens
 
+        # print("Get Phase Slices")
         self.get_phase_slices()
+
+        # print("Propagate Light")
         self.propagate_light()
 
         return self.output_phase

@@ -41,9 +41,19 @@ class LineOfSight(object):
             self.dm_metapupil_coords[i, 0] = numpy.linspace(x1, x2, self.pupil_size) + self.nx_scrn_size/2.
             self.dm_metapupil_coords[i, 1] = numpy.linspace(y1, y2, self.pupil_size) + self.nx_scrn_size/2.
 
+        self.raw_phase_screens = numpy.zeros((self.n_layers, self.nx_scrn_size, self.nx_scrn_size))
+        self.raw_phase_correction = numpy.zeros((self.n_dm, self.nx_scrn_size, self.nx_scrn_size))
+
+        # The phase chopped out of each layer at correction position and scaling
         self.phase_screens = numpy.zeros((self.n_layers, self.pupil_size, self.pupil_size))
+        self.phase_correction = numpy.zeros((self.n_dm, self.pupil_size, self.pupil_size))
 
     def calculate_altitude_coords(self, layer_altitude):
+        """
+
+        :param layer_altitude:
+        :return:
+        """
         direction_radians = ASEC2RAD * numpy.array(self.direction)
 
         centre = (direction_radians * layer_altitude) / self.phase_pxl_scale
@@ -68,16 +78,50 @@ class LineOfSight(object):
                 self.raw_phase_screens, self.layer_metapupil_coords, self.phase_screens, self.threads)
 
     def propagate_light(self):
+        """
+        Propagates light through each layer
+        """
         self.output_phase = self.phase_screens.sum(0)
 
-    def frame(self, phase_screens, phase_correction=None):
-        self.raw_phase_screens = phase_screens
+    def get_phase_correction_slices(self):
+        get_phase_slices(
+                self.raw_phase_correction, self.dm_metapupil_coords, self.phase_correction, self.threads)
+
+    def perform_correction(self):
+        self.correction = self.phase_correction.sum(0)
+
+        self.output_phase += self.correction
+
+    def frame(self, phase_screens=None, phase_correction=None):
+        """
+        Calculates the phase through a line of sight above a telescope for a single frame
+
+        Parameters:
+            phase_screens (ndarray): A 3-d array of phase screen large enough to fit the line of sight
+            phase_correction (ndarray): A 3-d array of phase correction
+
+        Returns:
+            ndarray: Output phase
+        """
+        if phase_screens is not None:
+            self.raw_phase_screens = phase_screens
+        else:
+            self.raw_phase_screens[:] = 0
+
+        if phase_correction is not None:
+            self.raw_phase_correction = phase_correction
+        else:
+            self.raw_phase_correction[:] = 0
 
         # print("Get Phase Slices")
         self.get_phase_slices()
 
         # print("Propagate Light")
         self.propagate_light()
+
+        self.get_phase_correction_slices()
+
+        self.perform_correction()
 
         return self.output_phase
 

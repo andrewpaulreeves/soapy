@@ -246,7 +246,7 @@ class Reconstructor(object):
             # Now get a DM shape for that command
             phase[dm.n_dm] = dm.makeDMFrame(actCommands)
             # Send the DM shape off to the relavent WFS. put result in iMat
-            wfs_phs = wfs.los.frame(phase)
+            wfs_phs = wfs.los.frame(phase_correction=phase)
 
             iMat[i] = (
                     -1 * wfs.frame(wfs_phs)) / dm.dmConfig.iMatValue
@@ -326,7 +326,7 @@ class MVM(Reconstructor):
         logger.info("Invert iMat with cond: {}".format(
                 self.dms[0].dmConfig.svdConditioning))
         self.controlMatrix[:] = scipy.linalg.pinv(
-                self.interaction_matrix, self.dms[0].dmConfig.svdConditioning
+                -1*self.interaction_matrix, self.dms[0].dmConfig.svdConditioning
                 )
 
 

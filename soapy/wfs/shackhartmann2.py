@@ -521,8 +521,8 @@ class Centroider(object):
 
 
     def centre_of_gravity_numpy(self, subaps):
-        self.centroids[:, 0] = ((self.indices[0]*subaps).sum((1,2))/subaps.sum((1,2))) + 0.5 - subaps.shape[1] * 0.5
-        self.centroids[:, 1] = ((self.indices[1]*subaps).sum((1,2))/subaps.sum((1,2))) + 0.5 - subaps.shape[2] * 0.5
+        self.centroids[:, 1] = ((self.indices[0]*subaps).sum((1,2))/subaps.sum((1,2))) + 0.5 - subaps.shape[1] * 0.5
+        self.centroids[:, 0] = ((self.indices[1]*subaps).sum((1,2))/subaps.sum((1,2))) + 0.5 - subaps.shape[2] * 0.5
         return self.centroids
 
     def centre_of_gravity_numba(self, subaps):

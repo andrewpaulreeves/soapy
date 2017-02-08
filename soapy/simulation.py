@@ -168,8 +168,7 @@ class Sim(object):
         logger.info("Creating mask...")
         self.mask = make_mask(self.config)
 
-
-
+        # Init the atmosphere
         self.atmos = atmosphere.atmos(self.config)
 
         # Find if WFSs should each have own process
@@ -590,10 +589,10 @@ class Sim(object):
         print("Time in Reconstruction: %0.2f"%self.recon.Trecon)
         print("Time in DM: %0.2f"%self.Tdm)
         print("Time making science image: %0.2f"%self.Tsci)
-
+        print("\n")
         if self.longStrehl is not None:
             for sci_n in range(self.config.sim.nSci):
-                print("Science Camera {} :Long Exposure Strehl Ratio: {:0.2f}".format(sci_n, self.longStrehl[-1]))
+                print("Science Camera {} :Long Exposure Strehl Ratio: {:0.2f}".format(sci_n, self.longStrehl[sci_n][-1]))
 
     def initSaveData(self):
         '''
@@ -652,7 +651,7 @@ class Sim(object):
         else:
             self.allSlopes = None
 
-        #Init DM Command Data saving
+        # Init DM Command Data saving
         if self.config.sim.saveDmCommands:
             ttActs = 0
 
@@ -661,7 +660,7 @@ class Sim(object):
         else:
             self.allDmCommands = None
 
-        #Init LGS PSF Saving
+        # Init LGS PSF Saving
         if self.config.sim.saveLgsPsf:
             self.lgsPsfs = []
             for lgs in xrange(self.config.sim.nGS):
@@ -676,7 +675,7 @@ class Sim(object):
         else:
             self.lgsPsfs = None
 
-        #Init Instantaneous PSF saving
+        # Init Instantaneous PSF saving
         if self.config.sim.nSci>0 and self.config.sim.saveInstPsf==True:
             self.sciImgsInst = {}
 
@@ -684,7 +683,7 @@ class Sim(object):
                 self.sciImgsInst[sci] = numpy.zeros([self.config.sim.nIters,self.config.scis[sci].pxls,self.config.scis[sci].pxls])
 
 
-        #Init Instantaneous electric field
+        # Init Instantaneous electric field
         if self.config.sim.nSci>0 and self.config.sim.saveInstScieField==True:
             self.scieFieldInst = {}
 
@@ -709,7 +708,7 @@ class Sim(object):
 
             self.allDmCommands[i,act:] = self.dmCommands
 
-        #Quick bodge to save lgs psfs as images
+        # Quick bodge to save lgs psfs as images
         if self.config.sim.saveLgsPsf:
             lgs=0
             for nwfs in xrange(self.config.sim.nGS):
@@ -742,13 +741,13 @@ class Sim(object):
                         self.wfss[nwfs].wfsDetectorPlane,
                         header=self.config.sim.saveHeader)
 
-        #Save Instantaneous PSF
+        # Save Instantaneous PSF
         if self.config.sim.nSci>0 and self.config.sim.saveInstPsf==True:
             for sci in xrange(self.config.sim.nSci):
                 self.sciImgsInst[sci][i,:,:] = self.sciCams[sci].focalPlane
 
 
-        #Save Instantaneous electric field
+        # Save Instantaneous electric field
         if self.config.sim.nSci>0 and self.config.sim.saveInstScieField==True:
             for sci in xrange(self.config.sim.nSci):
                 self.scieFieldInst[sci][self.iters,:,:] = self.sciCams[sci].focalPlane_efield
@@ -925,7 +924,7 @@ class Sim(object):
         else:
             string = self.config.filename.split("/")[-1].split(".")[0]
 
-        if strehl:
+        if strehl and (self.config.sim.nSci != 0):
             string += "  Strehl -- "
             for sci in xrange(self.config.sim.nSci):
                 string += "sci_{0}: inst {1:.2f}, long {2:.2f}".format(

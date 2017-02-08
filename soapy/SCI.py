@@ -257,8 +257,8 @@ class PSF2(object):
                 axes=(0, 1))
 
         self.strehl_reference = 1
-        self.strehl_reference = self.frame(
-                numpy.ones((self.pupil_size, self.pupil_size))).max()
+        reference_psf = self.frame(numpy.ones((self.pupil_size, self.pupil_size)))
+        self.strehl_reference = reference_psf.max()/reference_psf.sum()
 
     def interp_to_size(self):
 
@@ -280,7 +280,7 @@ class PSF2(object):
         numbalib.bin_img(self.focus, self.detector_bin_ratio, self.detector)
 
     def calculate_strehl(self):
-        self.instStrehl = self.detector.max() / self.strehl_reference
+        self.instStrehl = self.detector.max()/self.detector.sum() / self.strehl_reference
 
     def frame(self, phase):
 

@@ -250,6 +250,10 @@ class DM(object):
             
         return dmShape
 
+    def reset(self):
+        self.dmShape[:] = 0
+        self.actCoeffs[:] = 0
+
 class Zernike(DM):
     """
     A DM which corrects using a provided number of Zernike Polynomials

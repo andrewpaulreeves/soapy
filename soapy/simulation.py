@@ -129,7 +129,7 @@ class Sim(object):
 
         self.config = confParse.loadSoapyConfig(self.configFile)
         logger.statusMessage(
-                0, 1,"Loaded configuration file successfully!" )
+                1, 1,"Loaded configuration file successfully!" )
 
     def setLoggingLevel(self, level):
         """
@@ -190,7 +190,7 @@ class Sim(object):
         for nwfs in xrange(self.config.sim.nGS):
 
             self.wfs_los[nwfs] = lineofsight2.LineOfSight(
-                    self.config.wfss[0], self.config)
+                    self.config.wfss[0], self.config, mask=self.mask)
             try:
                 wfsClass = getattr(wfs, self.config.wfss[nwfs].type)
             except AttributeError:
@@ -254,7 +254,7 @@ class Sim(object):
         self.sciImgNo=0
         for sci_n in xrange(self.config.sim.nSci):
             self.sci_los[sci_n] = lineofsight2.LineOfSight(
-                    self.config.scis[0], self.config)
+                    self.config.scis[0], self.config, mask=self.mask)
             try:
                 sciObj = getattr(SCI, self.config.scis[sci_n].type)
             except AttributeError:
@@ -284,6 +284,11 @@ class Sim(object):
         self.Timat = 0
         self.Tatmos = 0
 
+        # Circular buffers to hold loop iteration correction data
+        self.slopes = numpy.zeros((self.config.sim.totalWfsData))
+        self.dmCommands = numpy.zeros( self.config.sim.totalActs)
+
+        self.iters = 0
 
         logger.info("Initialisation Complete!")
 
@@ -534,13 +539,11 @@ class Sim(object):
         # Save Data
         self.storeData(self.iters)
 
-
-        # logger.statusMessage(i, self.config.sim.nIters,
-        #                    "AO Loop")
-
         self.printOutput(self.iters, strehl=True)
 
         self.addToGuiQueue()
+
+        self.iters += 1
 
     def aoloop(self):
         """
@@ -549,19 +552,10 @@ class Sim(object):
         Runs a WFS iteration, reconstructs the phase, runs DMs and finally the science cameras. Also makes some nice output to the console and can add data to the Queue for the GUI if it has been requested. Repeats for nIters.
         """
 
-        self.iters=0
-        self.correct=1
         self.go = True
-
-        #Circular buffers to hold loop iteration correction data
-        self.slopes = numpy.zeros((self.config.sim.totalWfsData))
-        self.closedCorrection = []
-        self.openCorrection = []
-        self.dmCommands = numpy.zeros( self.config.sim.totalActs )
-
         try:
-            for i in xrange(self.config.sim.nIters):
-                self.iters=i
+            while self.iters < self.config.sim.nIters:
+
                 if self.go:
                     self.loopFrame()
                 else:
@@ -573,6 +567,17 @@ class Sim(object):
         #Finally save data after loop is over.
         self.saveData()
         self.finishUp()
+
+    def reset_loop(self):
+        """
+        Resets parameters in the system to zero, to restart an AO run wihtout reinitialising
+        """
+        self.iters = 0
+        self.slopes[:] = 0
+        self.dmCommands[:] = 0
+
+        for dm in self.dms.values(): dm.reset()
+
 
     def finishUp(self):
         """
@@ -586,8 +591,9 @@ class Sim(object):
         print("Time in DM: %0.2f"%self.Tdm)
         print("Time making science image: %0.2f"%self.Tsci)
 
-        # if self.longStrehl:
-#    print("\n\nLong Exposure Strehl Rate: %0.2f"%self.longStrehl[-1])
+        if self.longStrehl is not None:
+            for sci_n in range(self.config.sim.nSci):
+                print("Science Camera {} :Long Exposure Strehl Ratio: {:0.2f}".format(sci_n, self.longStrehl[-1]))
 
     def initSaveData(self):
         '''
@@ -616,6 +622,7 @@ class Sim(object):
             shutil.copyfile(self.configFile, self.path+"/conf.py" )
 
         # Init Strehl Saving
+        self.longStrehl = None
         if self.config.sim.nSci>0:
             self.instStrehl = numpy.zeros(
                     (self.config.sim.nSci, self.config.sim.nIters) )
@@ -627,7 +634,7 @@ class Sim(object):
                         (self.config.sim.nSci, self.config.sim.nIters)
                         )
 
-        #Init science residual phase saving
+        # Init science residual phase saving
         self.sciPhase = []
         if self.config.sim.saveSciRes and self.config.sim.nSci>0:
             for sci in xrange(self.config.sim.nSci):
@@ -638,7 +645,7 @@ class Sim(object):
 
 
 
-        #Init WFS slopes data saving
+        # Init WFS slopes data saving
         if self.config.sim.saveSlopes:
             self.allSlopes = numpy.empty(
                     (self.config.sim.nIters, self.config.sim.totalWfsData) )
@@ -738,13 +745,13 @@ class Sim(object):
         #Save Instantaneous PSF
         if self.config.sim.nSci>0 and self.config.sim.saveInstPsf==True:
             for sci in xrange(self.config.sim.nSci):
-                self.sciImgsInst[sci][i,:,:] = self.sciCams[sci].focalPlane#self.sciCams[sci].frame(self.scrns,phaseCorrection= self.openCorrection+self.closedCorrection)
+                self.sciImgsInst[sci][i,:,:] = self.sciCams[sci].focalPlane
 
 
         #Save Instantaneous electric field
         if self.config.sim.nSci>0 and self.config.sim.saveInstScieField==True:
             for sci in xrange(self.config.sim.nSci):
-                self.scieFieldInst[sci][self.iters,:,:] = self.sciCams[sci].focalPlane_efield#self.sciCams[sci].frame(self.scrns,phaseCorrection= self.openCorrection+self.closedCorrection,e_field=True)
+                self.scieFieldInst[sci][self.iters,:,:] = self.sciCams[sci].focalPlane_efield
 
     def saveData(self):
         """
@@ -975,7 +982,7 @@ class Sim(object):
                     except AttributeError:
                         sciImg[i] = None
                     try:
-                        instSciImg[i] = self.sciCams[i].focalPlane.copy()
+                        instSciImg[i] = self.sciCams[i].detector.copy()
                     except AttributeError:
                         instSciImg[i] = None
 

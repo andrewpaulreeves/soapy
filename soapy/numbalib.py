@@ -47,12 +47,11 @@ def bin_img(input_img, bin_size, binned_img, threads=None):
     if threads is None:
         threads = N_CPU
 
-    n_rows = input_img.shape[0]
-
+    n_rows = binned_img.shape[0]
 
     Ts = []
     for t in range(threads):
-        Ts.append(Thread(target=bin_imgs_numba,
+        Ts.append(Thread(target=bin_img_numba,
                          args=(
                              input_img, bin_size, binned_img,
                              numpy.array([int(t * n_rows / threads), int((t + 1) * n_rows / threads)]),
@@ -67,19 +66,19 @@ def bin_img(input_img, bin_size, binned_img, threads=None):
 
 
 @numba.jit(nopython=True, nogil=True)
-def bin_imgs_numba(imgs, bin_size, new_img, subap_range):
+def bin_img_numba(imgs, bin_size, new_img, row_indices):
+    # loop over each element in new array
+    for i in range(row_indices[0], row_indices[1]):
+        x1 = i * bin_size
 
-    for i in range(subap_range[0], subap_range[1]):
-        # loop over each element in new array
-        for i in range(new_img.shape[1]):
-            x1 = i * bin_size
-            for j in range(new_img.shape[2]):
-                y1 = j * bin_size
-                new_img[n, i, j] = 0
-                # loop over the values to sum
-                for x in range(bin_size):
-                    for y in range(bin_size):
-                        new_img[n, i, j] += imgs[n, x + x1, y + y1]
+        for j in range(new_img.shape[1]):
+            y1 = j * bin_size
+            new_img[i, j] = 0
+
+            # loop over the values to sum
+            for x in range(bin_size):
+                for y in range(bin_size):
+                    new_img[i, j] += imgs[x1 + x, y1 + y]
 
 
 def bin_img_slow(img, bin_size, new_img):

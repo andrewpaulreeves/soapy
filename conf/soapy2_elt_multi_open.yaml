@@ -1,0 +1,90 @@
+simName: Soapy2_ELT
+pupilSize: 592
+nGS: 6
+nDM: 0
+nSci: 0
+nIters: 1000
+loopTime: 0.00125
+reconstructor: "MVM"
+threads: 4
+
+verbosity: 2
+
+saveCMat: False
+saveSlopes: True
+saveDmCommands:   False
+saveLgsPsf: False
+saveSciPsf: False
+
+
+Atmosphere:
+  scrnNo: 5
+  scrnHeights: [0, 5000, 10000, 15000, 20000]
+  scrnStrengths: [  1.,  1.,  1.,  1.,  1.]
+  windDirs: [ 10.,  20.,  100.,  110.,  290.]
+  windSpeeds: [ 10.,  10.,  10.,  10., 10]
+  wholeScrnSize: 8192
+  r0: 0.16
+
+
+Telescope:
+  telDiam: 39.
+  obsDiam: 8.
+  mask: circle
+
+WFS:
+  0:
+    type: ShackHartmann2
+    GSPosition: [30, 51.9]
+    GSHeight: 0
+    GSMag: 8
+    nxSubaps: 74
+    pxlsPerSubap: 10
+    subapFOV: 2.
+    wavelength: 500e-9
+  1:
+    type: ShackHartmann2
+    GSPosition: [60, 0]
+    GSHeight: 0
+    GSMag: 8
+    nxSubaps: 74
+    pxlsPerSubap: 10
+    subapFOV: 2.
+    wavelength: 500e-9
+  2:
+    type: ShackHartmann2
+    GSPosition: [30, -51.9]
+    GSHeight: 0
+    GSMag: 8
+    nxSubaps: 74
+    pxlsPerSubap: 10
+    subapFOV: 2.
+    wavelength: 500e-9
+  3:
+    type: ShackHartmann2
+    GSPosition: [-30, -51.9]
+    GSHeight: 0
+    GSMag: 8
+    nxSubaps: 74
+    pxlsPerSubap: 10
+    subapFOV: 2.
+    wavelength: 500e-9
+  4:
+    type: ShackHartmann2
+    GSPosition: [-60, 0]
+    GSHeight: 0
+    GSMag: 8
+    nxSubaps: 74
+    pxlsPerSubap: 10
+    subapFOV: 2.
+    wavelength: 500e-9
+  5:
+    type: ShackHartmann2
+    GSPosition: [-30, 51.9]
+    GSHeight: 0
+    GSMag: 8
+    nxSubaps: 74
+    pxlsPerSubap: 10
+    subapFOV: 2.
+    wavelength: 500e-9
+

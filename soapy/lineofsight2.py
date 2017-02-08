@@ -10,7 +10,8 @@ ASEC2RAD = (numpy.pi/(180 * 3600))
 
 class LineOfSight(object):
 
-    def __init__(self, obj_config, soapy_config):
+    def __init__(self, obj_config, soapy_config, mask=None):
+
 
         self.direction = obj_config.position
         self.src_altitude = obj_config.source_altitude
@@ -47,6 +48,15 @@ class LineOfSight(object):
         # The phase chopped out of each layer at correction position and scaling
         self.phase_screens = numpy.zeros((self.n_layers, self.pupil_size, self.pupil_size))
         self.phase_correction = numpy.zeros((self.n_dm, self.pupil_size, self.pupil_size))
+
+        # set mask
+        if mask.shape == (soapy_config.sim.simSize, soapy_config.sim.simSize):
+            p = soapy_config.sim.simPad
+            self.mask = mask[p:-p, p:-p]
+        elif mask.shape == (soapy_config.sim.pupilSize, soapy_config.sim.pupilSize):
+            self.mask = mask
+        else:
+            raise ValueError("LineOfSight Mask shape not compatible")
 
     def calculate_altitude_coords(self, layer_altitude):
         """
@@ -122,6 +132,10 @@ class LineOfSight(object):
         self.get_phase_correction_slices()
 
         self.perform_correction()
+
+        # apply mask
+        if self.mask is not None:
+            self.output_phase *= self.mask
 
         return self.output_phase
 

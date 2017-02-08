@@ -139,6 +139,8 @@ class GUI(QtWidgets.QMainWindow):
         self.ui.initButton.clicked.connect(self.init)
         self.ui.iMatButton.clicked.connect(self.iMat)
         self.ui.stopButton.clicked.connect(self.stop)
+        self.ui.frameButton.clicked.connect(self.frame)
+        self.ui.resetButton.clicked.connect(self.reset)
 
         self.ui.reloadParamsAction.triggered.connect(self.read)
         self.ui.loadParamsAction.triggered.connect(self.readParamFile)
@@ -537,6 +539,9 @@ class GUI(QtWidgets.QMainWindow):
             self.iMatThread.updateProgressSignal.connect(self.progressUpdate)
             self.iMatThread.start()
 
+    def frame(self):
+        self.sim.loopFrame()
+        self.update()
 
     def run(self):
 
@@ -552,6 +557,10 @@ class GUI(QtWidgets.QMainWindow):
 
         self.updateTimer.start()
         self.statsThread.start()
+
+    def reset(self):
+        self.sim.reset_loop()
+        self.update()
 
     def stop(self):
         self.sim.go=False

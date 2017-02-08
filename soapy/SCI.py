@@ -220,10 +220,6 @@ class PSF2(object):
         self.pupil_size = soapy_config.sim.pupilSize
         self.threads = soapy_config.sim.threads
 
-        self.mask = mask[
-                    soapy_config.sim.simPad:-soapy_config.sim.simPad,
-                    soapy_config.sim.simPad:-soapy_config.sim.simPad
-                    ]
         self.telescope_diameter = soapy_config.tel.telDiam
         self.pxl_scale = self.sci_config.pxlScale
         self.wavelength = self.sci_config.wavelength
@@ -236,7 +232,7 @@ class PSF2(object):
                 / self.wavelength))
 
         # Find first multiple of detector pixels bigger than nx_subap_interp
-        self.detector_bin_ratio = 1
+        self.detector_bin_ratio = 0
         self.nx_focus_efield = 1
         while self.nx_focus_efield < self.nx_interp_phase:
             self.detector_bin_ratio += 1
@@ -281,7 +277,7 @@ class PSF2(object):
         self.focus = numpy.fft.fftshift(self.focus)
 
         # print("Bin")
-        numbalib.bin_img_slow(self.focus, self.detector_bin_ratio, self.detector)
+        numbalib.bin_img(self.focus, self.detector_bin_ratio, self.detector)
 
     def calculate_strehl(self):
         self.instStrehl = self.detector.max() / self.strehl_reference

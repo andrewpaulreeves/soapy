@@ -57,14 +57,15 @@ WFS:
     pxlsPerSubap: 10
     subapFOV: 2.
     wavelength: 500e-9
+    subapThreshold: 0.8
 
 DM:
   0:
 
-    type: Piezo
+    type: Zernike
     closed: True
-    nxActuators: 9
-    svdConditioning: 0.05
+    nxActuators: 30
+    svdConditioning: 0.03
     gain: 0.7
     iMatValue: 500
 

@@ -57,7 +57,7 @@ class ShackHartmann2(object):
         self.subap_diam = self.telescope_diameter/self.nx_subaps
 
         # coordinates of sub-ap positions on pupil and detector
-        self.subap_positions, self.subapFillFactor = wfslib.findActiveSubaps(
+        self.subap_positions, self.subap_fill_factor = wfslib.findActiveSubaps(
                 self.nx_subaps, self.mask,
                 self.subap_threshold, returnFill=True)
         self.subap_detector_pos = self.subap_positions * self.nx_subaps * self.nx_subap_pxls / self.pupil_size
@@ -108,11 +108,11 @@ class ShackHartmann2(object):
         # init a centroider
         self.centroider = Centroider(self.n_subaps, self.nx_subap_pxls, threads=self.threads)
 
-        # Calculate a tilt required to centre the spots
-        self.tilt_fix = self.calculate_tilt_correction()
-
         # Find rad to nm conversion
         self.nm_to_rad = 1e-9 * (2 * numpy.pi) / self.wavelength
+
+        # Calculate a tilt required to centre the spots
+        self.tilt_fix = self.calculate_tilt_correction()
 
         # Array place holders
         self.subap_phase = numpy.zeros(
@@ -142,16 +142,28 @@ class ShackHartmann2(object):
         if not self.nx_subap_pxls % 2:
             # If pixels per subap is even
             # Angle we need to correct for half a pixel
-            theta = ASEC2RAD *  self.pxl_scale * self.nx_subap_pxls/ (2*self.nx_subap_focus_efield)
+            # Need half of effective pixel scale after FFT
+            theta = 0.5 * self.pxl_scale / self.detector_bin_ratio
+            print('Theta: {}"'.format(theta))
 
-            # Magnitude of tilt required to get that angle
-            A = theta * self.telescope_diameter/(2*self.wavelength)*2*numpy.pi
+            theta *= ASEC2RAD
+
+            print("Theta: {} rad".format(theta))
+            # Magnitude of tilt required to get that angle (in nm)
+            A = theta * self.telescope_diameter * 1e9
+            print("A: {} nm".format(A))
+
+            # Convert from rad
+            A *= self.nm_to_rad
+            print ("A: {} rad".format(A))
 
             # Create tilt arrays and apply magnitude
             coords = numpy.linspace(-1, 1, self.pupil_size)
             X, Y = numpy.meshgrid(coords, coords)
 
             tilt_fix = -1 * A * (X + Y)
+
+            tilt_fix *= self.mask
 
         else:
             tilt_fix = numpy.zeros((self.nx_subap_interp,)*2)
@@ -202,6 +214,9 @@ class ShackHartmann2(object):
         else:
             self.detector_subaps = self.subaps_focus_intensity
 
+        # Scale intensity in each sub-aperture by fill factor
+        self.detector_subaps = self.detector_subaps
+
         # put subaps back into a single detector array
         place_subaps_on_detector(
                 self.detector_subaps, self.detector, self.subap_detector_pos,
@@ -224,8 +239,7 @@ class ShackHartmann2(object):
 
     def frame(self, phase, read=False):
 
-        # convert phase to radians
-        self.phase = phase
+        self.phase = phase.copy()
 
         self.interp_to_size()
         

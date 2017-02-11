@@ -70,7 +70,7 @@ from argparse import ArgumentParser
 import shutil
 
 # sim imports
-from . import atmosphere, logger, wfs, DM, RECON, SCI, confParse, aotools, lineofsight2
+from . import atmosphere, logger, wfs, DM, reconstruction, SCI, confParse, aotools, lineofsight2
 from .aotools import circle, interp
 
 # Use pyfits or astropy for fits file handling
@@ -236,7 +236,7 @@ class Sim(object):
         # Init Reconstructor
         logger.info("Initialising Reconstructor...")
         try:
-            reconObj = getattr(RECON, self.config.sim.reconstructor)
+            reconObj = getattr(reconstruction, self.config.sim.reconstructor)
         except AttributeError:
             raise confParse.ConfigurationError("No reconstructor of type {} found.".format(self.config.sim.reconstructor))
         self.recon = reconObj(

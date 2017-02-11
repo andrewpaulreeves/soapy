@@ -17,16 +17,14 @@
 #     along with soapy.  If not, see <http://www.gnu.org/licenses/>.
 
 import traceback
-import sys
 import time
 
 import numpy
 import scipy
-from scipy.ndimage.interpolation import rotate
 
 from . import logger
 
-#Use pyfits or astropy for fits file handling
+# Use pyfits or astropy for fits file handling
 try:
     from astropy.io import fits
 except ImportError:
@@ -143,24 +141,34 @@ class Reconstructor(object):
         else:
             self.controlMatrix = cMat
 
-    def saveIMat(self):
+    def save_interaction_matrix(self):
+        """
+        Writes the current control Matrix to FITS file
+        """
+        filename = self.simConfig.simName+"/iMat.fits"
 
-        for dm in xrange(self.simConfig.nDM):
-            filenameIMat = self.simConfig.simName+"/iMat_dm%d.fits" % dm
-            filenameShapes = self.simConfig.simName+"/dmShapes_dm%d.fits" % dm
-
-            fits.writeto(
-                    filenameIMat, self.dms[dm].iMat,
-                    header=self.simConfig.saveHeader,
-                    clobber=True)
-            # If DM has pre made influence funcs, save them too
-            try:
-                fits.writeto(
-                        filenameShapes, self.dms[dm].iMatShapes,
-                        header=self.simConfig.saveHeader, clobber=True)
-            # If not, don't worry about it!
-            except AttributeError:
-                pass
+        fits.writeto(
+                filename, self.interaction_matrix,
+                header=self.simConfig.saveHeader, clobber=True)
+    #
+    # def saveIMat(self):
+    #
+    #     for dm in xrange(self.simConfig.nDM):
+    #         filenameIMat = self.simConfig.simName+"/iMat_dm%d.fits" % dm
+    #         filenameShapes = self.simConfig.simName+"/dmShapes_dm%d.fits" % dm
+    #
+    #         fits.writeto(
+    #                 filenameIMat, self.dms[dm].iMat,
+    #                 header=self.simConfig.saveHeader,
+    #                 clobber=True)
+    #         # If DM has pre made influence funcs, save them too
+    #         try:
+    #             fits.writeto(
+    #                     filenameShapes, self.dms[dm].iMatShapes,
+    #                     header=self.simConfig.saveHeader, clobber=True)
+    #         # If not, don't worry about it!
+    #         except AttributeError:
+    #             pass
 
     def loadIMat(self):
         acts = 0

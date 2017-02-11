@@ -25,6 +25,7 @@ from .atmosphere import makePhaseScreens
 
 # Compatability with older API
 from . import wfs as WFS
+from . import reconstruction as RECON
 
 #Try to import GUI, if not then its ok
 try:

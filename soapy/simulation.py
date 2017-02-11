@@ -592,7 +592,7 @@ class Sim(object):
         print("\n")
         if self.longStrehl is not None:
             for sci_n in range(self.config.sim.nSci):
-                print("Science Camera {} :Long Exposure Strehl Ratio: {:0.2f}".format(sci_n, self.longStrehl[sci_n][-1]))
+                print("Science Camera {}: Long Exposure Strehl Ratio: {:0.2f}".format(sci_n, self.longStrehl[sci_n][self.iters-1]))
 
     def initSaveData(self):
         '''

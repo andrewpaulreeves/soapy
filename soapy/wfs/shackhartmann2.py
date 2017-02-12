@@ -2,13 +2,13 @@ import multiprocessing
 N_CPU = multiprocessing.cpu_count()
 from threading import Thread
 from queue import Queue
-import logging
 import time
 
 import numpy
 import numba
 import pyfftw
 
+from .. import logger
 from aotools import wfs as wfslib
 
 
@@ -54,7 +54,7 @@ class ShackHartmann2(object):
         # Calculate some parameters
         # -------------------------
         self.pxl_scale = self.subap_fov/self.nx_subap_pxls
-        self.subap_diam = self.telescope_diameter/self.nx_subaps
+        self.subap_diameter = self.telescope_diameter/self.nx_subaps
 
         # coordinates of sub-ap positions on pupil and detector
         self.subap_positions, self.subap_fill_factor = wfslib.findActiveSubaps(
@@ -67,17 +67,22 @@ class ShackHartmann2(object):
                 self.subap_detector_pos[:, 1], self.subap_detector_pos[:, 1] + self.nx_subap_pxls
                     ]).T
 
+
+
         self.n_subaps = self.subap_positions.shape[0]
         self.nx_subap_size = float(self.pupil_size)/self.nx_subaps # Subap diameter in phase elements
         self.n_measurements = self.n_subaps * 2 # Number of total measurements
 
-        # size of each sub-ap before FFT
+        # size of each sub-ap before FFT to get required pixel scale
         self.nx_subap_interp = int(round(
-                self.nx_subap_size * self.pxl_scale * (numpy.pi/(180*3600)) * self.subap_diam
+                self.subap_fov * (numpy.pi/(180*3600)) * self.subap_diameter
                 / self.wavelength))
-        print("Active Subapertures: {}".format(self.n_subaps))
-        print("Subap phase elements: {}".format(self.nx_subap_size))
-        print("nx_subap_interp: {}".format(self.nx_subap_interp))
+
+        self.actual_pxl_scale = self.wavelength * self.nx_subap_interp / ((numpy.pi/(180*3600)) * self.subap_diameter * self.nx_subap_pxls)
+        logger.info('Actual WFS Pixel scale: {}" per pixel'.format(self.actual_pxl_scale))
+        logger.info("Active Subapertures: {}".format(self.n_subaps))
+        logger.info("Subap phase elements: {}".format(self.nx_subap_size))
+        logger.debug("nx_subap_interp: {}".format(self.nx_subap_interp))
 
         # Find the sub-ap coordinates on the interpolated phase map
         self.subap_interp_positions = numpy.round(
@@ -85,12 +90,12 @@ class ShackHartmann2(object):
                 ).astype('int32')
 
         # Find first multiple of nx_subap_pxls bigger than nx_subap_interp
-        self.detector_bin_ratio = 0
+        self.detector_bin_ratio = 2
         self.nx_subap_focus_efield = 1
         while self.nx_subap_focus_efield < self.nx_subap_interp:
             self.detector_bin_ratio += 1
             self.nx_subap_focus_efield = self.nx_subap_pxls * self.detector_bin_ratio
-        print("Set detector bin ratio to {}, nx_subap_focus_efield: {}".format(
+        logger.info("Set detector bin ratio to {}, nx_subap_focus_efield: {}".format(
                 self.detector_bin_ratio, self.nx_subap_focus_efield))
 
         # make an fft object
@@ -130,6 +135,9 @@ class ShackHartmann2(object):
                 (self.n_subaps, self.nx_subap_focus_efield, self.nx_subap_focus_efield),
                 dtype="float32")
 
+        # Make a mask the correct size as the interpolated phase
+        self.interp_mask = numpy.round(zoom(self.mask, numpy.zeros_like(self.interp_phase)))
+
         # Run the WFS once with zero phase to get static slopes
         self.static_slopes = numpy.zeros_like(self.slopes)
         self.static_slopes = self.frame(numpy.zeros((self.pupil_size, self.pupil_size)))
@@ -143,30 +151,28 @@ class ShackHartmann2(object):
             # If pixels per subap is even
             # Angle we need to correct for half a pixel
             # Need half of effective pixel scale after FFT
-            theta = 0.5 * self.pxl_scale / self.detector_bin_ratio
-            print('Theta: {}"'.format(theta))
+            theta = 0.5 * self.actual_pxl_scale / self.detector_bin_ratio
+            logger.debug('Theta: {}"'.format(theta))
 
             theta *= ASEC2RAD
 
-            print("Theta: {} rad".format(theta))
+            logger.debug("Theta: {} rad".format(theta))
             # Magnitude of tilt required to get that angle (in nm)
-            A = theta * self.telescope_diameter * 1e9
-            print("A: {} nm".format(A))
+            A = theta * self.telescope_diameter* 1e9
+            logger.debug("A: {} nm".format(A))
 
             # Convert from rad
             A *= self.nm_to_rad
-            print ("A: {} rad".format(A))
+            logger.debug ("A: {} rad".format(A))
 
             # Create tilt arrays and apply magnitude
-            coords = numpy.linspace(-1, 1, self.pupil_size)
+            coords = numpy.linspace(-0.5, 0.5, self.pupil_size)
             X, Y = numpy.meshgrid(coords, coords)
 
             tilt_fix = -1 * A * (X + Y)
 
-            tilt_fix *= self.mask
-
         else:
-            tilt_fix = numpy.zeros((self.nx_subap_interp,)*2)
+            tilt_fix = numpy.zeros((self.pupil_size,)*2)
 
         return tilt_fix
 
@@ -174,12 +180,11 @@ class ShackHartmann2(object):
         """
         Interpolate the phase to the size required for the correct pixel scale
         """
-        # print("Interp")
+        # logger.debug("Interp")
         # Convert to rad
         self.phase *= self.nm_to_rad
-
-        # add tilt fix
         self.phase += self.tilt_fix
+        self.phase *= self.mask
 
         zoom(self.phase, self.interp_phase, threads=self.threads)
 
@@ -187,16 +192,18 @@ class ShackHartmann2(object):
         """
         Chop the phase into individual sub-apertures and turns each into a complex amplitude
         """
-        # print("chop")
-        chop_subaps_efield(
+        # logger.debug("chop")
+        chop_subaps(
                 self.interp_phase, self.subap_interp_positions,
-                self.nx_subap_interp, self.subap_efield, threads=self.threads)
+                self.nx_subap_interp, self.subap_phase, threads=self.threads)
+
+        self.subap_efield[:, :self.nx_subap_interp, :self.nx_subap_interp] = numpy.exp(1j * self.subap_phase)
 
     def subaps_to_focus(self):
         """
         Bring each of the sub-aperture's phase to a focus
         """
-        # print("focus")
+        # logger.debug("focus")
         self.fft()
 
         abs_squared(self.subap_focus_efield, self.subaps_focus_intensity, threads=self.threads)
@@ -206,7 +213,7 @@ class ShackHartmann2(object):
         """
         Bin focus to detector pixel scale and put into a detector image
         """
-        # print("assemble detector")
+        # logger.debug("assemble detector")
         if self.nx_subap_focus_efield != self.nx_subap_pxls:
             bin_imgs(
                     self.subaps_focus_intensity, self.detector_bin_ratio, 
@@ -215,7 +222,7 @@ class ShackHartmann2(object):
             self.detector_subaps = self.subaps_focus_intensity
 
         # Scale intensity in each sub-aperture by fill factor
-        self.detector_subaps = self.detector_subaps
+        self.detector_subaps = (self.detector_subaps.T * self.subap_fill_factor).T
 
         # put subaps back into a single detector array
         place_subaps_on_detector(
@@ -226,12 +233,12 @@ class ShackHartmann2(object):
         """
         Given a SH WFS detector image, will compute the centroid slope values
         """
-        # print("calc_slopes")
+        # logger.debug("calc_slopes")
         chop_subaps(
                 self.detector, self.slope_calc_coords,
                 self.nx_subap_pxls, self.slope_calc_subaps, threads=self.threads)
 
-        # print("Do Centroider")
+        # logger.debug("Do Centroider")
         self.slopes = self.centroider(self.slope_calc_subaps).T.flatten()
 
         # correct for static slopes

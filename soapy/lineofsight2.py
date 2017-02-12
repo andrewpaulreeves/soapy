@@ -130,7 +130,7 @@ class LineOfSight(object):
         self.propagate_light()
 
         # Now at telescope, so apply mask
-        self.output_phase *= self.mask
+        # self.output_phase *= self.mask
 
         self.get_phase_correction_slices()
 

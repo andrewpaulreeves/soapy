@@ -47,6 +47,10 @@ class ShackHartmann3(object):
         # Sort out the paramters teh WFS will need (that can't be changed dynamically)
         # --------------------------------
         self.los = los
+        mask = mask[
+                soapy_config.sim.simPad:-soapy_config.sim.simPad,
+                soapy_config.sim.simPad:-soapy_config.sim.simPad
+                ]
 
         self.soapy_config = soapy_config
         self.config = soapy_config.wfss[n_wfs]
@@ -66,9 +70,11 @@ class ShackHartmann3(object):
         self.nx_subap_pixels = self.config.pxlsPerSubap
         self.fft_oversamp = self.config.fftOversamp
         self.lgs_config = self.config.lgs
+        self.nx_guard_pixels = self.config.nx_guard_pixels
 
         # Calculate some parameters
         # -------------------------
+        self.pxl_scale = self.subap_fov / self.nx_subap_pixels
         self.subap_diam = self.telescope_diameter / self.nx_subaps
 
         # spacing between subaps in pupil Plane (size "pupil_size")
@@ -80,13 +86,19 @@ class ShackHartmann3(object):
         self.nx_subap_interp = int(round(
                 self.subap_diam * self.subap_fov_rad/ self.wavelength))
 
+        self.actual_pxl_scale = (
+                self.wavelength * self.nx_subap_interp /
+                (ASEC2RAD * self.subap_diam * self.nx_subap_pixels))
+        logger.info('Requested pixel scale: {}"'.format(self.pxl_scale))
+        logger.info('Actual WFS pixel scale: {}"'.format(self.actual_pxl_scale))
+
         # make subap twice as big to double subap FOV
         if self.config.subapFieldStop==True:
             self.SUBAP_OVERSIZE = 1
         else:
             self.SUBAP_OVERSIZE = 2
 
-        self.nx_detector_pixels = self.nx_subap_pixels * self.config.nxSubaps
+        self.nx_detector_pixels = self.nx_subaps * (self.nx_subap_pixels + self.nx_guard_pixels) + self.nx_guard_pixels
         self.nx_subap_interp *= self.SUBAP_OVERSIZE
         self.nx_subap_pixels2 = (self.SUBAP_OVERSIZE * self.nx_subap_pixels)
 
@@ -95,17 +107,20 @@ class ShackHartmann3(object):
                 self.nx_subaps * self.nx_subap_interp))
 
         # Calculate the subaps that are actually seen behind the pupil mask
-        self.pupil_subap_coords, self.subap_fill_factor = wfs.findActiveSubaps(
-                self.nx_subaps, mask, self.subap_threshold, returnFill=True)
+        (self.pupil_subap_coords, self.detector_subap_coords2,
+         self.valid_subap_coords, self.detector_cent_coords,
+         self.subap_fill_factor) = findActiveSubaps(
+                self.nx_subaps, mask, self.subap_threshold, self.nx_subap_pixels,
+                self.SUBAP_OVERSIZE, self.nx_guard_pixels)
         self.interp_subap_coords = numpy.round(
                 self.pupil_subap_coords * self.nx_subap_interp / self.nx_subap_pupil)
 
         self.n_subaps = int(self.pupil_subap_coords.shape[0])
         self.n_measurements = 2 * self.n_subaps
 
-        # Coordinates to put the subaps into the detector
-        self.detector_subap_coords = numpy.round(
-                self.pupil_subap_coords*(self.nx_detector_pixels/float(self.pupil_size)))
+        # # # Coordinates to put the subaps into the detector
+        # self.detector_subap_coords = numpy.round(
+        #         self.pupil_subap_coords*(self.nx_detector_pixels/float(self.pupil_size)))
 
         # Calculate the FFT padding to use
         self.subapFFTPadding = self.nx_subap_pixels2 * self.fft_oversamp
@@ -117,17 +132,10 @@ class ShackHartmann3(object):
 
             logger.warning("requested WFS FFT Padding less than FOV size... Setting oversampling to: %d"%self.fft_oversamp)
 
-        # Init the FFT to the focal plane
-        # self.FFT = AOFFT.FFT(
-        #         inputSize=(
-        #         self.n_subaps, self.subapFFTPadding, self.subapFFTPadding),
-        #         axes=(-2,-1), mode="pyfftw",dtype=CDTYPE,
-        #         THREADS=self.threads,
-        #         fftw_FLAGS=(self.config.fftwFlag,"FFTW_DESTROY_INPUT"))
 
         self.subap_interp_efield = numpy.zeros(
                 (self.n_subaps, self.subapFFTPadding, self.subapFFTPadding), dtype=CDTYPE)
-        self.binnedFPSubapArrays = numpy.zeros(
+        self.detector_subaps = numpy.zeros(
                 (self.n_subaps, self.nx_subap_pixels2, self.nx_subap_pixels2), dtype=DTYPE)
         self.subap_focus_efield = numpy.zeros(
                 (self.n_subaps, self.subapFFTPadding, self.subapFFTPadding), dtype=CDTYPE)
@@ -210,7 +218,8 @@ class ShackHartmann3(object):
         if not self.nx_subap_pixels%2:
             # If pxlsPerSubap is even
             # Angle we need to correct for half a pixel
-            theta = self.SUBAP_OVERSIZE*self.subap_fov_rad/ (
+            actual_subap_fov = self.actual_pxl_scale * self.nx_subap_pixels * ASEC2RAD
+            theta = self.SUBAP_OVERSIZE * actual_subap_fov/ (
                     2*self.subapFFTPadding)
 
             # Magnitude of tilt required to get that angle
@@ -253,37 +262,23 @@ class ShackHartmann3(object):
 
     def chop_into_subaps(self):
 
-        #
-        # numbalib.wfs.chop_subaps(
-        #         self.scaledEField, self.interp_subap_coords, self.nx_subap_interp,
-        #         self.subap_interp_efield, threads=self.threads)
 
+        numbalib.wfs.chop_subaps(
+                self.scaledEField, self.interp_subap_coords, self.nx_subap_interp,
+                self.subap_interp_efield, threads=self.threads)
 
-        # create an array of individual subap EFields
-        for i in xrange(self.n_subaps):
-            x, y = numpy.round(self.pupil_subap_coords[i] *
-                                     self.nx_subap_interp/self.nx_subap_pupil)
-            self.subap_interp_efield[i,
-                    :self.nx_subap_interp,
-                    :self.nx_subap_interp
-                    ] = self.scaledEField[
-                                    int(x):
-                                    int(x+self.nx_subap_interp) ,
-                                    int(y):
-                                    int(y+self.nx_subap_interp)] * numpy.exp(1j * self.tilt_fix)
+        self.subap_interp_efield[
+                :, :self.nx_subap_interp, :self.nx_subap_interp
+                ] *= numpy.exp(1j*self.tilt_fix)
+
 
     def subaps_to_focus(self, intensity=1):
         #do the fft to all subaps at the same time
         # and convert into intensity®
         self.fft()
-
-        self.subap_focus_intensity = intensity * numpy.abs(AOFFT.ftShift2d(self.subap_focus_efield))**2
-
-        # if intensity==1:
-        #     self.FPSubapArrays += numpy.abs(AOFFT.ftShift2d(self.subap_focus_intensity))**2
-        # else:
-        #     self.FPSubapArrays += intensity*numpy.abs(
-        #             AOFFT.ftShift2d(self.subap_focus_intensity))**2
+        self.subap_focus_intensity = numbalib.abs_squared(
+                self.subap_focus_efield, self.subap_focus_intensity, threads=self.threads)
+        self.subap_focus_intensity = intensity * AOFFT.ftShift2d(self.subap_focus_intensity)
 
     def assemble_detector_image(self):
         # If required, convolve with LGS PSF
@@ -291,67 +286,25 @@ class ShackHartmann3(object):
             self.applyLgsUplink()
 
         # bins back down to correct size and then
-        # fits them back in to a focal plane array
-        self.binnedFPSubapArrays[:] = interp.binImgs(self.subap_focus_intensity,
-                                                     self.fft_oversamp)
+        # fits them back onto the detector
+        numbalib.wfs.bin_imgs(
+                self.subap_focus_intensity, self.fft_oversamp, self.detector_subaps,
+                threads=self.threads)
 
         # In case of empty sub-aps, will get NaNs
-        self.binnedFPSubapArrays[numpy.isnan(self.binnedFPSubapArrays)] = 0
+        self.detector_subaps[numpy.isnan(self.detector_subaps)] = 0
 
         # Scale each sub-ap flux by sub-aperture fill-factor
-        self.binnedFPSubapArrays \
-            = (self.binnedFPSubapArrays.T * self.subap_fill_factor).T
+        self.detector_subaps = (self.detector_subaps.T * self.subap_fill_factor).T
 
         for i in xrange(self.n_subaps):
-            x, y = self.detector_subap_coords[i]
 
-            # Set default position to put arrays into (SUBAP_OVERSIZE FOV)
-            x1 = int(round(
-                x + self.nx_subap_pixels / 2.
-                - self.nx_subap_pixels2 / 2.))
-            x2 = int(round(
-                x + self.nx_subap_pixels / 2.
-                + self.nx_subap_pixels2 / 2.))
-            y1 = int(round(
-                y + self.nx_subap_pixels / 2.
-                - self.nx_subap_pixels2 / 2.))
-            y2 = int(round(
-                y + self.nx_subap_pixels / 2.
-                + self.nx_subap_pixels2 / 2.))
+            dx1, dx2, dy1, dy2 = self.detector_subap_coords2[i]
+            sx1, sx2, sy1, sy2 = self.valid_subap_coords[i]
 
-            # Set defualt size of input array (i.e. all of it)
-            x1_fp = int(0)
-            x2_fp = int(round(self.nx_subap_pixels2))
-            y1_fp = int(0)
-            y2_fp = int(round(self.nx_subap_pixels2))
-
-            # If at the edge of the field, may only fit a fraction in
-            if x == 0:
-                x1 = 0
-                x1_fp = int(round(
-                    self.nx_subap_pixels2 / 2.
-                    - self.nx_subap_pixels / 2.))
-
-            elif x == (self.nx_detector_pixels - self.nx_subap_pixels):
-                x2 = int(round(self.nx_detector_pixels))
-                x2_fp = int(round(
-                    self.nx_subap_pixels2 / 2.
-                    + self.nx_subap_pixels / 2.))
-
-            if y == 0:
-                y1 = 0
-                y1_fp = int(round(
-                    self.nx_subap_pixels2 / 2.
-                    - self.nx_subap_pixels / 2.))
-
-            elif y == (self.nx_detector_pixels - self.nx_subap_pixels):
-                y2 = int(self.nx_detector_pixels)
-                y2_fp = int(round(
-                    self.nx_subap_pixels2 / 2.
-                    + self.nx_subap_pixels / 2.))
-
-            self.detector[x1:x2, y1:y2] += (
-                self.binnedFPSubapArrays[i, x1_fp:x2_fp, y1_fp:y2_fp])
+            s = self.detector_subaps[i, sx1: sx2, sy1: sy2]
+            # print(s.shape)
+            self.detector[dx1: dx2, dy1: dy2] += s
 
         # Scale data for correct number of photons
         self.detector /= self.detector.sum()
@@ -369,7 +322,7 @@ class ShackHartmann3(object):
     def calculate_slopes(self):
         # Sort out FP into subaps
         for i in xrange(self.n_subaps):
-            x, y = self.detector_subap_coords[i]
+            x, y = self.detector_cent_coords[i]
             x = int(x)
             y = int(y)
             self.centSubapArrays[i] = self.detector[
@@ -441,3 +394,87 @@ class ShackHartmann3(object):
         self.calculate_slopes()
 
         return self.slopes
+
+
+def findActiveSubaps(
+            nx_subaps, mask, threshold, nx_subap_pixels, subap_oversize, guard=0):
+    '''
+    Finds the subapertures which are "seen" be through the
+    pupil function. Returns the coords of those subaps
+
+    Parameters:
+        nx_subaps (int): The number of subaps in x (assumes square)
+        mask (ndarray): A pupil mask, where is transparent when 1, and opaque when 0
+        threshold (float): The mean value across a subap to make it "active"
+        nx_subap_pixels (int): Pixels per subaperture on detector
+        subap_oversize (int): Factor that subap is "oversized" on detector
+        guard (int, optional): Guard pixels between sub-apertures
+
+    Returns:
+        ndarray: An array of active subap coords
+    '''
+
+    pupil_coords = []
+    x_spacing = mask.shape[0]/float(nx_subaps)
+    y_spacing = mask.shape[1]/float(nx_subaps)
+
+    detector_coords = []
+    subap_coords = []
+    detector_cent_coords = []
+
+    fills = []
+
+    nx_oversize_subap = subap_oversize * nx_subap_pixels # number of pixels on oversized subap
+    detector_pad = (nx_oversize_subap - nx_subap_pixels) / 2. # Pad on each side of subap
+    nx_detector_pixels = nx_subaps * nx_subap_pixels + (nx_subaps + 1) * guard # Total number of detector pixels
+
+
+    for x in range(nx_subaps):
+        for y in range(nx_subaps):
+            subap = mask[
+                    int(numpy.round(x*x_spacing)): int(numpy.round((x+1)*x_spacing)),
+                    int(numpy.round(y*y_spacing)): int(numpy.round((y+1)*y_spacing))
+                    ]
+
+            if subap.mean() >= threshold:
+                pupil_coords.append( [x * x_spacing, y * y_spacing])
+                fills.append(subap.mean())
+
+                detector_cent_coords.append([
+                        x * nx_subap_pixels + (x+1) * guard, y * nx_subap_pixels + (y+1) * guard])
+
+                dx1 = x * nx_subap_pixels - detector_pad + (x+1) * guard
+                dx2 = (x + 1) * nx_subap_pixels + detector_pad + (x+1) * guard
+                dy1 = y * nx_subap_pixels - detector_pad + (y+1) * guard
+                dy2 = (y + 1) * nx_subap_pixels + detector_pad + (y+1) * guard
+                detector_coords.append([dx1, dx2, dy1, dy2])
+
+                if dx1 < 0:
+                    sx1 = -dx1
+                else:
+                    sx1 = 0
+
+                if dx2 > nx_detector_pixels:
+                    sx2 = -(dx2 - nx_detector_pixels)
+                else:
+                    sx2 = nx_oversize_subap
+
+                if dy1 < 0:
+                    sy1 = -dy1
+                else:
+                    sy1 = 0
+
+                if dy2 > nx_detector_pixels:
+                    sy2 = -(dy2 - nx_detector_pixels)
+                else:
+                    sy2 = nx_oversize_subap
+
+                subap_coords.append([sx1, sx2, sy1, sy2])
+
+    pupil_coords = numpy.array(pupil_coords).astype('int32')
+    detector_coords = numpy.array(detector_coords)
+    detector_coords = detector_coords.clip(0, nx_detector_pixels).astype('int32')
+    subap_coords = numpy.array(subap_coords).astype('int32')
+
+    return pupil_coords, detector_coords, subap_coords, detector_cent_coords, numpy.array(fills)
+

@@ -711,6 +711,8 @@ class WfsConfig(ConfigObj):
         ``subapFOV``            float: Field of View of
                                 sub-aperture in arc-secs           ``5``
         ``correlationFFTPad``   int: Padding for correlation WFS    ``None``
+        ``nx_guard_pixels``     int: Guard pixels in between sub-
+                                apertures                           ``0``
         =====================   ================================== ===========
 
 
@@ -746,6 +748,7 @@ class WfsConfig(ConfigObj):
                         ("subapFOV", 5),
                         ("correlationFFTPad", None),
                         ("source_altitude", 0),
+                        ("nx_guard_pixels", 0),
                         ]
 
         # Parameters which may be Set at some point and are allowed

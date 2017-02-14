@@ -159,17 +159,17 @@ def chop_subaps_efield_slow(phase, subap_coords, nx_subap_size, subap_array, thr
     return subap_array
 
 
-def place_subaps_on_detector(subap_imgs, detector_img, subap_positions, threads=None):
+def place_subaps_on_detector(subap_imgs, detector_img, detector_positions, subap_coords, threads=None):
     if threads is None:
         threads = N_CPU
 
-    n_subaps = subap_positions.shape[0]
+    n_subaps = detector_positions.shape[0]
 
     Ts = []
     for t in range(threads):
         Ts.append(Thread(target=place_subaps_on_detector_numba,
                          args=(
-                             subap_imgs, detector_img, subap_positions,
+                             subap_imgs, detector_img, detector_positions, subap_coords,
                              numpy.array([int(t * n_subaps / threads), int((t + 1) * n_subaps / threads)]),
                          )
                          ))
@@ -182,15 +182,15 @@ def place_subaps_on_detector(subap_imgs, detector_img, subap_positions, threads=
 
 
 @numba.jit(nopython=True, nogil=True)
-def place_subaps_on_detector_numba(subap_imgs, detector_img, subap_positions, subap_indices):
+def place_subaps_on_detector_numba(subap_imgs, detector_img, detector_positions, subap_coords, subap_indices):
     """
     Puts a set of sub-apertures onto a detector image
     """
 
     for i in range(subap_indices[0], subap_indices[1]):
-        x1, x2, y1, y2 = subap_positions[i]
-
-        detector_img[x1: x2, y1: y2] = subap_imgs[i]
+        x1, x2, y1, y2 = detector_positions[i]
+        sx1 ,sx2, sy1, sy2 = subap_coords[i]
+        detector_img[x1: x2, y1: y2] += subap_imgs[i, sx1: sx2, sy1: sy2]
 
     return detector_img
 

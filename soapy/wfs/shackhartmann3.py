@@ -89,8 +89,8 @@ class ShackHartmann3(object):
         self.actual_pxl_scale = (
                 self.wavelength * self.nx_subap_interp /
                 (ASEC2RAD * self.subap_diam * self.nx_subap_pixels))
-        logger.info('Requested pixel scale: {}"'.format(self.pxl_scale))
-        logger.info('Actual WFS pixel scale: {}"'.format(self.actual_pxl_scale))
+        logger.info('Requested pixel scale: {:.3f}"'.format(self.pxl_scale))
+        logger.info('Actual WFS pixel scale: {:.3f}"'.format(self.actual_pxl_scale))
 
         # make subap twice as big to double subap FOV
         if self.config.subapFieldStop==True:
@@ -107,7 +107,7 @@ class ShackHartmann3(object):
                 self.nx_subaps * self.nx_subap_interp))
 
         # Calculate the subaps that are actually seen behind the pupil mask
-        (self.pupil_subap_coords, self.detector_subap_coords2,
+        (self.pupil_subap_coords, self.detector_subap_coords,
          self.valid_subap_coords, self.detector_cent_coords,
          self.subap_fill_factor) = findActiveSubaps(
                 self.nx_subaps, mask, self.subap_threshold, self.nx_subap_pixels,
@@ -132,7 +132,7 @@ class ShackHartmann3(object):
 
             logger.warning("requested WFS FFT Padding less than FOV size... Setting oversampling to: %d"%self.fft_oversamp)
 
-
+        self.interp_phase = numpy.zeros((self.nx_interp_efield, self.nx_interp_efield), dtype=DTYPE)
         self.subap_interp_efield = numpy.zeros(
                 (self.n_subaps, self.subapFFTPadding, self.subapFFTPadding), dtype=CDTYPE)
         self.detector_subaps = numpy.zeros(
@@ -145,7 +145,7 @@ class ShackHartmann3(object):
         self.detector = numpy.zeros(
                 (self.nx_detector_pixels, self.nx_detector_pixels), dtype=DTYPE)
         # Array used when centroiding subaps
-        self.centSubapArrays = numpy.zeros( (self.n_subaps,
+        self.cent_subap_arrays = numpy.zeros( (self.n_subaps,
               self.nx_subap_pixels, self.nx_subap_pixels) )
 
         self.fft = pyfftw.FFTW(
@@ -254,8 +254,8 @@ class ShackHartmann3(object):
 
     def interp_to_size(self):
         # Have to make phase the correct size for pixel scale
-        self.scaledEField = interp.zoom(self.phase, self.nx_interp_efield)
-        self.scaledEField = numpy.exp(1j*self.scaledEField)
+        numbalib.wfs.zoom(self.phase, self.interp_phase, threads=self.threads)
+        self.scaledEField = numpy.exp(1j*self.interp_phase)
 
         # Apply the scaled pupil mask
         self.scaledEField *= self.scaled_mask
@@ -297,14 +297,19 @@ class ShackHartmann3(object):
         # Scale each sub-ap flux by sub-aperture fill-factor
         self.detector_subaps = (self.detector_subaps.T * self.subap_fill_factor).T
 
-        for i in xrange(self.n_subaps):
+        # for i in xrange(self.n_subaps):
+        #
+        #     dx1, dx2, dy1, dy2 = self.detector_subap_coords[i]
+        #     sx1, sx2, sy1, sy2 = self.valid_subap_coords[i]
+        #
+        #     s = self.detector_subaps[i, sx1: sx2, sy1: sy2]
+        #     # print(s.shape)
+        #     self.detector[dx1: dx2, dy1: dy2] += s
 
-            dx1, dx2, dy1, dy2 = self.detector_subap_coords2[i]
-            sx1, sx2, sy1, sy2 = self.valid_subap_coords[i]
-
-            s = self.detector_subaps[i, sx1: sx2, sy1: sy2]
-            # print(s.shape)
-            self.detector[dx1: dx2, dy1: dy2] += s
+        numbalib.wfs.place_subaps_on_detector(
+                self.detector_subaps, self.detector, self.detector_subap_coords, self.valid_subap_coords,
+                threads=self.threads
+        )
 
         # Scale data for correct number of photons
         self.detector /= self.detector.sum()
@@ -321,16 +326,21 @@ class ShackHartmann3(object):
 
     def calculate_slopes(self):
         # Sort out FP into subaps
+
+        # numbalib.wfs.chop_subaps(
+        #         self.detector, self.detector_cent_coords, self.nx_subap_pixels,
+        #         self.cent_subap_arrays, threads=self.threads)
+
         for i in xrange(self.n_subaps):
             x, y = self.detector_cent_coords[i]
             x = int(x)
             y = int(y)
-            self.centSubapArrays[i] = self.detector[
+            self.cent_subap_arrays[i] = self.detector[
                                       x:x + self.nx_subap_pixels,
                                       y:y + self.nx_subap_pixels].astype(DTYPE)
 
         slopes = getattr(centroiders, self.config.centMethod)(
-            self.centSubapArrays,
+            self.cent_subap_arrays,
             threshold=self.config.centThreshold,
             ref=None
         )
@@ -475,6 +485,7 @@ def findActiveSubaps(
     detector_coords = numpy.array(detector_coords)
     detector_coords = detector_coords.clip(0, nx_detector_pixels).astype('int32')
     subap_coords = numpy.array(subap_coords).astype('int32')
+    detector_cent_coords = numpy.array(detector_cent_coords)
 
     return pupil_coords, detector_coords, subap_coords, detector_cent_coords, numpy.array(fills)
 

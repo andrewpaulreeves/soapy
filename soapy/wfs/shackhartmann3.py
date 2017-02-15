@@ -76,6 +76,7 @@ class ShackHartmann3(object):
         # -------------------------
         self.pxl_scale = self.subap_fov / self.nx_subap_pixels
         self.subap_diam = self.telescope_diameter / self.nx_subaps
+        self.nm_to_rad = 1e-9 * (2 * numpy.pi) / self.wavelength
 
         # spacing between subaps in pupil Plane (size "pupil_size")
         self.nx_subap_pupil = float(self.pupil_size)/self.nx_subaps
@@ -391,7 +392,7 @@ class ShackHartmann3(object):
 
     def frame(self, phase, read=False):
 
-        self.phase = phase.copy()
+        self.phase = phase.copy() * self.nm_to_rad
 
         self.interp_to_size()
 

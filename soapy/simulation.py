@@ -574,7 +574,8 @@ class Sim(object):
         self.iters = 0
         self.slopes[:] = 0
         self.dmCommands[:] = 0
-
+        self.longStrehl[:] = 0
+        for sci in self.sciImgs.values(): sci[:] = 0
         for dm in self.dms.values(): dm.reset()
 
 

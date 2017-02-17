@@ -78,6 +78,10 @@ class ShackHartmann(base.WFS):
 
         self.referenceImage = self.wfsConfig.referenceImage
 
+        # For Compatability
+        self.n_measurements = self.activeSubaps * 2
+        self.wavelength = self.wfsConfig.wavelength
+
     def findActiveSubaps(self):
         '''
         Finds the subapertures which are not empty space

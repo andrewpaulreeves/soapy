@@ -254,10 +254,8 @@ class Reconstructor(object):
             # Now get a DM shape for that command
             phase[dm.n_dm] = dm.makeDMFrame(actCommands)
             # Send the DM shape off to the relavent WFS. put result in iMat
-            wfs_phs = wfs.los.frame(phase_correction=phase)
-
             iMat[i] = (
-                    -1 * wfs.frame(wfs_phs)) / dm.dmConfig.iMatValue
+                    -1 * wfs.frame(phase_correction=phase)) / dm.dmConfig.iMatValue
 
             if callback != None:
                 callback()

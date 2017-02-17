@@ -105,7 +105,7 @@ class DM(object):
         # placeholder
         self.totalWfsMeasurements = 0
         for nWfs in range(len(self.wfss)):
-            self.totalWfsMeasurements += 2*self.wfss[nWfs].n_subaps
+            self.totalWfsMeasurements += self.wfss[nWfs].n_measurements
 
         logger.info("Making DM Influence Functions...")
         self.makeIMatShapes()

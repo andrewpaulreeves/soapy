@@ -58,6 +58,8 @@ class LineOfSight(object):
         else:
             raise ValueError("LineOfSight Mask shape not compatible")
 
+        self.output_phase = numpy.zeros((self.pupil_size, self.pupil_size))
+
     def calculate_altitude_coords(self, layer_altitude):
         """
 
@@ -114,27 +116,37 @@ class LineOfSight(object):
             ndarray: Output phase
         """
         if phase_screens is not None:
-            self.raw_phase_screens = phase_screens
+            if phase_screens.ndim == 3:
+                self.raw_phase_screens = phase_screens
+                # print("Get Phase Slices")
+                self.get_phase_slices()
+                # print("Propagate Light")
+                self.propagate_light()
+
+            elif phase_screens.ndim == 2:
+                self.output_phase[:] = phase_screens
+
+
         else:
+            self.output_phase[:] = 0
             self.raw_phase_screens[:] = 0
+
+
 
         if phase_correction is not None:
             self.raw_phase_correction = phase_correction
+            # Now at telescope, so apply mask
+            # self.output_phase *= self.mask
+            self.get_phase_correction_slices()
+
+            self.perform_correction()
         else:
             self.raw_phase_correction[:] = 0
 
-        # print("Get Phase Slices")
-        self.get_phase_slices()
-
-        # print("Propagate Light")
-        self.propagate_light()
 
         # Now at telescope, so apply mask
         # self.output_phase *= self.mask
 
-        self.get_phase_correction_slices()
-
-        self.perform_correction()
 
         # apply mask
         if self.mask is not None:
@@ -143,8 +155,11 @@ class LineOfSight(object):
         return self.output_phase
 
 
+
 # LOS Functions
 # -------------
+
+
 def get_phase_slices(raw_phase_screens, layer_metapupil_coords, phase_screens, threads=None):
 
     if threads is None:

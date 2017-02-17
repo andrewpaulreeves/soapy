@@ -10,7 +10,7 @@ except ImportError:
     except ImportError:
         raise ImportError("Soapy requires either pyfits or astropy")
 
-from .. import AOFFT, LGS, logger
+from .. import AOFFT, LGS, logger, lineofsight2
 from .. import aotools
 from ..aotools import centroiders, wfs, interp, circle
 from .. import numbalib
@@ -42,11 +42,10 @@ class ShackHartmann3(object):
         los (LineOfSight, optional): Corresponding Soapy Line of sight object. Can be given so its easier for other modules to retrieve it
 
     """
-    def __init__(self, soapy_config, n_wfs, mask=None, los=None):
+    def __init__(self, soapy_config, n_wfs, mask=None):
 
         # Sort out the paramters teh WFS will need (that can't be changed dynamically)
         # --------------------------------
-        self.los = los
         mask = mask[
                 soapy_config.sim.simPad:-soapy_config.sim.simPad,
                 soapy_config.sim.simPad:-soapy_config.sim.simPad
@@ -133,6 +132,11 @@ class ShackHartmann3(object):
 
             logger.warning("requested WFS FFT Padding less than FOV size... Setting oversampling to: %d"%self.fft_oversamp)
 
+        self.setMask(mask)
+
+        # Initialise a "line of sight" for the WFS
+        self.line_of_sight = lineofsight2.LineOfSight(self.config, self.soapy_config, self.mask)
+
         self.interp_phase = numpy.zeros((self.nx_interp_efield, self.nx_interp_efield), dtype=DTYPE)
         self.subap_interp_efield = numpy.zeros(
                 (self.n_subaps, self.subapFFTPadding, self.subapFFTPadding), dtype=CDTYPE)
@@ -187,13 +191,13 @@ class ShackHartmann3(object):
 
         self.slopes = numpy.zeros(self.n_measurements)
 
-        self.setMask(mask)
         self.calculate_tilt_correction()
 
         # Make flat wavefront, and run through WFS in iMat mode to turn off features
         phs = numpy.zeros([self.pupil_size]*2).astype(DTYPE)
         self.reference_slopes = self.slopes.copy()
         self.reference_slopes = self.frame(phs).copy()
+
 
     def setMask(self, mask):
 
@@ -373,7 +377,7 @@ class ShackHartmann3(object):
         with the subap focal plane.
         '''
 
-        self.lgs.getLgsPsf(self.los.scrns)
+        self.lgs.getLgsPsf(self.line_of_sight.scrns)
 
         self.lgs_iFFT.inputData[:] = self.lgs.psf
         self.iFFTLGSPSF = self.lgs_iFFT()
@@ -390,7 +394,12 @@ class ShackHartmann3(object):
 
 
 
-    def frame(self, phase, read=False):
+    def frame(self, phase=None, phase_correction=None, read=False):
+
+        # If given a 3-d phase map, assume is a set o layers or DMs fo rhte lineofsight
+        # Else, its just phase for the WFS
+
+        phase = self.line_of_sight.frame(phase, phase_correction)
 
         self.phase = phase.copy() * self.nm_to_rad
 

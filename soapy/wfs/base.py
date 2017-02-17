@@ -385,7 +385,7 @@ class WFS(object):
             # Add onto the focal plane with that layers intensity
             self.calcFocalPlane(intensity=self.lgsConfig.naProfile[i])
 
-    def frame(self, scrns, correction=None, read=True, iMatFrame=False):
+    def frame(self, scrns, phase_correction=None, read=True, iMatFrame=False):
         '''
         Runs one WFS frame
 
@@ -396,7 +396,7 @@ class WFS(object):
 
         Parameters:
             scrns (list): A list or dict containing the phase screens
-            correction (ndarray, optional): The correction term to take from the phase screens before the WFS is run.
+            phase_correction (ndarray, optional): The correction term to take from the phase screens before the WFS is run.
             read (bool, optional): Should the WFS be read out? if False, then WFS image is calculated but slopes not calculated. defaults to True.
             iMatFrame (bool, optional): If True, will assume an interaction matrix is being measured. Turns off some AO loop features before running
 
@@ -420,7 +420,7 @@ class WFS(object):
 
         # If LGS elongation simulated
         if self.config.lgs and self.elong!=0:
-            self.makeElongationFrame(correction)
+            self.makeElongationFrame(phase_correction)
 
         # If no elongation
         else:
@@ -435,8 +435,8 @@ class WFS(object):
             self.los.makePhase(self.radii)
 
             self.uncorrectedPhase = self.los.phase.copy()/self.los.phs2Rad
-            if correction is not None:
-                self.los.performCorrection(correction)
+            if phase_correction is not None:
+                self.los.performCorrection(phase_correction)
                 
             self.calcFocalPlane()
 

@@ -198,13 +198,13 @@ class Sim(object):
                                 self.config.wfss[wfs].type))
 
             self.wfss[nwfs] = wfsClass(
-                    self.config, nwfs, mask=self.mask, los=self.wfs_los[nwfs])
+                    self.config, nwfs, mask=self.mask)
 
             self.config.wfss[nwfs].dataStart = self.config.sim.totalWfsData
-            self.config.sim.totalWfsData += self.wfss[nwfs].n_subaps*2
+            self.config.sim.totalWfsData += self.wfss[nwfs].n_measurements
 
             logger.info("WFS {0}: {1} measurements".format(nwfs,
-                     self.wfss[nwfs].n_subaps*2))
+                     self.wfss[nwfs].n_measurements))
 
         # Init DMs
         logger.info("Initialising {0} DMs...".format(self.config.sim.nDM))
@@ -252,16 +252,13 @@ class Sim(object):
         self.sciImgs = {}
         self.sciImgNo=0
         for sci_n in xrange(self.config.sim.nSci):
-            self.sci_los[sci_n] = lineofsight2.LineOfSight(
-                    self.config.scis[0], self.config, mask=self.mask)
+
             try:
                 sciObj = getattr(SCI, self.config.scis[sci_n].type)
             except AttributeError:
                 raise confParse.ConfigurationError("No science camera of type {} found".format(self.config.scis[nSci].type))
 
-            self.sciCams[sci_n] = sciObj(
-                        self.config, sci_index=sci_n, mask=self.mask, los=self.sci_los[sci_n]
-                        )
+            self.sciCams[sci_n] = sciObj(self.config, sci_index=sci_n, mask=self.mask)
 
             self.sciImgs[sci_n] = numpy.zeros( [self.config.scis[sci_n].pxls]*2 )
 
@@ -351,7 +348,7 @@ class Sim(object):
 
         slopesSize = 0
         for nwfs in wfsList:
-            slopesSize+=self.wfss[nwfs].n_subaps*2
+            slopesSize+=self.wfss[nwfs].n_measurements
         slopes = numpy.zeros( (slopesSize) )
 
         s = 0
@@ -366,12 +363,11 @@ class Sim(object):
                     read=True
             else:
                 read = True
-            wfs_phase = self.wfs_los[nwfs].frame(self.scrns, dmShape)
-            sl = self.wfss[nwfs].frame(wfs_phase, read=read)
+            sl = self.wfss[nwfs].frame(self.scrns, dmShape, read=read)
 
-            slopes[s:s+self.wfss[nwfs].n_subaps*2] = sl
+            slopes[s:s+self.wfss[nwfs].n_measurements] = sl
 
-            s += self.wfss[nwfs].n_subaps*2
+            s += self.wfss[nwfs].n_measurements
 
         self.Twfs+=time.time()-t_wfs
         return slopes
@@ -404,7 +400,7 @@ class Sim(object):
 
         slopesSize = 0
         for nwfs in wfsList:
-            slopesSize += self.wfss[nwfs].n_subaps*2
+            slopesSize += self.wfss[nwfs].n_measurements
         slopes = numpy.zeros( (slopesSize) )
 
         wfsProcs = []
@@ -434,7 +430,7 @@ class Sim(object):
         for proc in xrange(len(wfsList)):
             nwfs = wfsList[proc]
 
-            (slopes[s:s+self.wfss[nwfs].n_subaps*2],
+            (slopes[s:s+self.wfss[nwfs].n_measurements],
                     self.wfss[nwfs].wfsDetectorPlane,
                     self.wfss[nwfs].uncorrectedPhase,
                     lgsPsf) = wfsQueues[proc].get()
@@ -443,7 +439,7 @@ class Sim(object):
                 self.wfss[nwfs].LGS.psf1 = lgsPsf
 
             wfsProcs[proc].join()
-            s += self.wfss[nwfs].n_subaps*2
+            s += self.wfss[nwfs].n_measurements
 
         self.Twfs+=time.time()-t_wfs
         return slopes
@@ -485,8 +481,7 @@ class Sim(object):
 
         self.sciImgNo +=1
         for sci in xrange(self.config.sim.nSci):
-            sci_phase = self.sci_los[sci].frame(self.scrns, dmShape)
-            self.sciImgs[sci] += self.sciCams[sci].frame(sci_phase)
+            self.sciImgs[sci] += self.sciCams[sci].frame(self.scrns, dmShape)
 
             # Normalise long exposure psf
             #self.sciImgs[sci] /= self.sciImgs[sci].sum()
@@ -723,7 +718,7 @@ class Sim(object):
                 self.longStrehl[sci,i] = self.sciCams[sci].longExpStrehl
 
                 # Record WFE residual
-                res = self.sciCams[sci].los.output_phase
+                res = self.sciCams[sci].line_of_sight.output_phase
                 # Remove piston first
                 p = self.config.sim.simPad
                 res -= res.sum()/self.mask[p:-p, p:-p].sum()

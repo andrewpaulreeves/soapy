@@ -20,7 +20,7 @@ import numpy
 import scipy.optimize as opt
 import pyfftw
 
-from . import AOFFT, logger, lineofsight
+from . import AOFFT, logger, lineofsight, lineofsight2
 from .aotools import circle, interp
 from . import numbalib
 
@@ -186,6 +186,7 @@ class singleModeFibre(PSF):
     def __init__(self, soapyConfig, nSci=0, mask=None):
         scienceCam.__init__(self, soapyConfig, nSci, mask)
 
+
         self.normMask = self.mask / numpy.sqrt(numpy.sum(numpy.abs(self.mask)**2))
         self.fibreSize = opt.minimize_scalar(self.refCouplingLoss, bracket=[1.0, self.simConfig.simSize]).x
         self.refStrehl = 1.0 - self.refCouplingLoss(self.fibreSize)
@@ -209,21 +210,24 @@ scienceCam = ScienceCam = PSF
 
 
 class PSF2(object):
-    def __init__(self, soapy_config, sci_index, mask=None, los=None):
-
-        self.los = los
+    def __init__(self, soapy_config, sci_index, mask=None):
 
         # Get parameters from configuration
         # ---------------------------------
-        self.sci_config = soapy_config.scis[sci_index]
-
+        self.config = soapy_config.scis[sci_index]
+        self.soapy_config = soapy_config
         self.pupil_size = soapy_config.sim.pupilSize
         self.threads = soapy_config.sim.threads
 
         self.telescope_diameter = soapy_config.tel.telDiam
-        self.pxl_scale = self.sci_config.pxlScale
-        self.wavelength = self.sci_config.wavelength
-        self.nx_detector_pixels = self.sci_config.pxls
+        self.pxl_scale = self.config.pxlScale
+        self.wavelength = self.config.wavelength
+        self.nx_detector_pixels = self.config.pxls
+
+        self.mask = mask[
+                soapy_config.sim.simPad:-soapy_config.sim.simPad,
+                soapy_config.sim.simPad:-soapy_config.sim.simPad
+                ]
 
         # Calculate some parameters
         # The required size of the phase to get the correct FOV out of the FFT
@@ -260,10 +264,11 @@ class PSF2(object):
         reference_psf = self.frame(numpy.ones((self.pupil_size, self.pupil_size)))
         self.strehl_reference = reference_psf.max()/reference_psf.sum()
 
+        # Initialise a "line of sight" for the WFS
+        self.line_of_sight = lineofsight2.LineOfSight(self.config, self.soapy_config, self.mask)
+
     def interp_to_size(self):
 
-        # Convert to rad
-        self.phase *= self.nm_to_rad
         # print("Interp_to_size")
         numbalib.zoom(self.phase, self.interp_phase, threads=self.threads)
 
@@ -282,9 +287,14 @@ class PSF2(object):
     def calculate_strehl(self):
         self.instStrehl = self.detector.max()/self.detector.sum() / self.strehl_reference
 
-    def frame(self, phase):
+    def frame(self, phase, correction=None):
 
-        self.phase = phase
+        # If given a 3-d phase map, assume is a set o layers or DMs fo rhte lineofsight
+        # Else, its just phase for the WFS
+        if phase.ndim == 3:
+            phase = self.line_of_sight.frame(phase, correction)
+
+        self.phase = phase.copy() * self.nm_to_rad
 
         self.interp_to_size()
         self.calculate_focal_plane()

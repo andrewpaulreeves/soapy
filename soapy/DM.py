@@ -201,7 +201,7 @@ class DM(object):
         self.iMat = iMat
         return iMat
 
-    def dmFrame(self, dmCommands, closed=False):
+    def dmFrame(self, dmCommands):
         '''
         Uses interaction matrix to calculate the final DM shape.
 
@@ -219,18 +219,18 @@ class DM(object):
             ndarray: A 2-d array with the DM shape
         '''
         # try:
-        self.newActCoeffs = dmCommands
+        # self.newActCoeffs = dmCommands
 
         # If loop is closed, only add residual measurements onto old
         # actuator values
-        if closed:
-            self.actCoeffs += self.dmConfig.gain*self.newActCoeffs
+        # if closed:
+        #     self.actCoeffs += self.dmConfig.gain*self.newActCoeffs
+        #
+        # else:
+        #     self.actCoeffs = (self.dmConfig.gain * self.newActCoeffs)\
+        #         + ( (1. - self.dmConfig.gain) * self.actCoeffs)
 
-        else:
-            self.actCoeffs = (self.dmConfig.gain * self.newActCoeffs)\
-                + ( (1. - self.dmConfig.gain) * self.actCoeffs)
-
-        self.dmShape = self.makeDMFrame(self.actCoeffs)
+        self.dmShape = self.makeDMFrame(dmCommands)
         # Remove any piston term from DM
         self.dmShape -= self.dmShape.mean()
 
@@ -431,7 +431,7 @@ class FastPiezo(Piezo):
                 (self.dmConfig.nxActuators, self.dmConfig.nxActuators))
 
         # DM size is the pupil size, but withe one extra act on each side
-        self.dmSize =  self.simConfig.pupilSize + 2*numpy.round(self.spcing)
+        self.dmSize =  self.simConfig.pupilSize + 2 * numpy.round(self.spcing)
 
         return acts
 

@@ -9,10 +9,10 @@ except ImportError:
     except ImportError:
         raise ImportError("Soapy requires either pyfits or astropy")
 
-from .. import AOFFT, LGS, logger
+from .. import AOFFT, LGS, logger, lineofsight2
 from . import base
 from .. import aotools
-from ..aotools import centroiders, wfs, interp
+from ..aotools import centroiders, wfs, interp, circle
 
 # xrange now just "range" in python3.
 # Following code means fastest implementation used in 2 and 3
@@ -26,16 +26,69 @@ CDTYPE = numpy.complex64
 DTYPE = numpy.float32
 
 
-class ShackHartmann(base.WFS):
+class ShackHartmann4(object):
     """Class to simulate a Shack-Hartmann WFS"""
+
+
+    def __init__(
+            self, soapyConfig, nWfs=0, mask=None):
+
+        # Get static parameters from configuration
+
+        self.soapy_config = soapyConfig
+        self.config = self.wfsConfig = soapyConfig.wfss[nWfs] # For compatability
+        self.simConfig = soapyConfig.sim
+        self.telConfig = soapyConfig.tel
+        self.atmosConfig = soapyConfig.atmos
+        self.lgsConfig = self.config.lgs
+
+        self.telescope_diameter = self.soapy_config.tel.telDiam
+        self.wavelength = self.config.wavelength
+
+        self.nm_to_rad = 1e-9 * (2 * numpy.pi) / self.wavelength
+
+
+        # If supplied use the mask
+        if numpy.any(mask):
+            self.mask = mask
+        # Else we'll just make a circle
+        else:
+            self.mask = circle.circle(
+                    self.simConfig.pupilSize/2., self.simConfig.simSize,
+                    )
+
+        self.iMat = False
+
+        # Init the line of sight
+        # Initialise a "line of sight" for the WFS
+        self.line_of_sight = lineofsight2.LineOfSight(self.config, self.soapy_config, self.mask)
+
+        self.calcInitParams()
+        # If GS not at infinity, find meta-pupil radii for each layer
+        if self.config.GSHeight != 0:
+            self.radii = self.los.findMetaPupilSizes(self.config.GSHeight)
+        else:
+            self.radii = None
+
+        # Init LGS, FFTs and allocate some data arrays
+        self.initFFTs()
+        if self.lgsConfig and self.config.lgs:
+            self.initLGS()
+
+        self.allocDataArrays()
+
+        self.calcTiltCorrect()
+        self.getStatic()
+
 
     def calcInitParams(self):
         """
         Calculate some parameters to be used during initialisation
         """
+        # self.los.calcInitParams(nOutPxls=None)
 
         self.subapFOVrad = self.config.subapFOV * numpy.pi / (180. * 3600)
-        self.subapDiam = self.los.telDiam/self.config.nxSubaps
+        self.subapDiam = self.telescope_diameter/self.config.nxSubaps
 
         # spacing between subaps in pupil Plane (size "pupilSize")
         self.PPSpacing = float(self.simConfig.pupilSize)/self.config.nxSubaps
@@ -103,7 +156,6 @@ class ShackHartmann(base.WFS):
         self.setMask(self.mask)
 
     def setMask(self, mask):
-        super(ShackHartmann, self).setMask(mask)
 
         # Find the mask to apply to the scaled EField
         self.scaledMask = numpy.round(interp.zoom(
@@ -165,12 +217,71 @@ class ShackHartmann(base.WFS):
                     )
 
     def initLGS(self):
-        super(ShackHartmann, self).initLGS()
+        """
+         Initialises the LGS objects for the WFS
+
+         Creates and initialises the LGS objects if the WFS GS is a LGS. This
+         included calculating the phases additions which are required if the
+         LGS is elongated based on the depth of the elongation and the launch
+         position. Note that if the GS is at infinity, elongation is not possible
+         and a warning is logged.
+         """
+        # Choose the correct LGS object, either with physical or geometric
+        # or geometric propagation.
+        if self.lgsConfig.uplink:
+            lgsObj = eval("LGS.LGS_{}".format(self.lgsConfig.propagationMode))
+            self.lgs = lgsObj(self.config, self.soapy_config)
+        else:
+            self.lgs = None
+
+        self.lgsLaunchPos = None
+        self.elong = 0
+        self.elongLayers = 0
+        if self.config.lgs:
+            self.lgsLaunchPos = self.lgsConfig.launchPosition
+            # LGS Elongation##############################
+            if (self.config.GSHeight != 0 and
+                        self.lgsConfig.elongationDepth != 0):
+                self.elong = self.lgsConfig.elongationDepth
+                self.elongLayers = self.lgsConfig.elongationLayers
+
+                # Get Heights of elong layers
+                self.elongHeights = numpy.linspace(
+                    self.config.GSHeight - self.elong / 2.,
+                    self.config.GSHeight + self.elong / 2.,
+                    self.elongLayers
+                )
+
+                # Calculate the zernikes to add
+                self.elongZs = circle.zernikeArray([2, 3, 4], self.simConfig.pupilSize)
+
+                # Calculate the radii of the metapupii at for different elong
+                # Layer heights
+                # Also calculate the required phase addition for each layer
+                self.elongRadii = {}
+                self.elongPos = {}
+                self.elongPhaseAdditions = numpy.zeros(
+                    (self.elongLayers, self.los.nOutPxls, self.los.nOutPxls))
+                for i in xrange(self.elongLayers):
+                    self.elongRadii[i] = self.los.findMetaPupilSizes(
+                        float(self.elongHeights[i]))
+                    self.elongPhaseAdditions[i] = self.calcElongPhaseAddition(i)
+                    self.elongPos[i] = self.calcElongPos(i)
+
+                # self.los.metaPupilPos = self.elongPos
+
+                logger.debug(
+                    'Elong Meta Pupil Pos: {}'.format(self.los.metaPupilPos))
+            # If GS at infinity cant do elongation
+            elif (self.config.GSHeight == 0 and
+                          self.lgsConfig.elongationDepth != 0):
+                logger.warning("Not able to implement LGS Elongation as GS at infinity")
+
         if self.lgsConfig.uplink:
             lgsObj = getattr(
                     LGS, "LGS_{}".format(self.lgsConfig.propagationMode))
             self.lgs = lgsObj(
-                    self.config, self.soapyConfig,
+                    self.config, self.soapy_config,
                     nOutPxls=self.subapFFTPadding,
                     outPxlScale=float(self.config.subapFOV)/self.subapFFTPadding
                     )
@@ -183,8 +294,6 @@ class ShackHartmann(base.WFS):
         avoid having to re-alloc memory during the running of the WFS and
         keep it fast.
         """
-        self.los.allocDataArrays()
-
         self.subapArrays=numpy.zeros((self.activeSubaps,
                                       self.subapFOVSpacing,
                                       self.subapFOVSpacing),
@@ -238,28 +347,11 @@ class ShackHartmann(base.WFS):
         self.staticData = None
 
         # Make flat wavefront, and run through WFS in iMat mode to turn off features
-        phs = numpy.zeros([self.simConfig.scrnSize]*2).astype(DTYPE)
+        phs = numpy.zeros([self.simConfig.pupilSize]*2).astype(DTYPE)
         self.staticData = self.frame(
                 phs, iMatFrame=True).copy().reshape(2,self.activeSubaps)
 #######################################################################
 
-
-    def zeroData(self, detector=True, FP=True):
-        """
-        Sets data structures in WFS to zero.
-
-        Parameters:
-            detector (bool, optional): Zero the detector? default:True
-            FP (bool, optional): Zero intermediate focal plane arrays? default: True
-        """
-
-        self.zeroPhaseData()
-
-        if FP:
-            self.FPSubapArrays[:] = 0
-
-        if detector:
-            self.wfsDetectorPlane[:] = 0
 
 
     def calcFocalPlane(self, intensity=1):
@@ -272,7 +364,7 @@ class ShackHartmann(base.WFS):
 
         if self.config.propagationMode=="Geometric":
             # Have to make phase the correct size if geometric prop
-            scaledEField = interp.zoom(self.los.phase, self.scaledEFieldSize)
+            scaledEField = interp.zoom(self.phase, self.scaledEFieldSize)
             scaledEField = numpy.exp(1j*scaledEField)
         else:
             scaledEField = self.EField
@@ -466,5 +558,93 @@ class ShackHartmann(base.WFS):
                     /self.wfsConfig.subapFOV )
             self.slopes += numpy.random.normal(
                     0, pxlEquivNoise, 2*self.activeSubaps)
+
+        return self.slopes
+
+
+    def zeroData(self, detector=True, FP=True):
+        """
+        Sets data structures in WFS to zero.
+
+        Parameters:
+            detector (bool, optional): Zero the detector? default:True
+            FP (bool, optional): Zero intermediate focal plane arrays? default: True
+        """
+
+        # self.zeroPhaseData()
+
+        if FP:
+            self.FPSubapArrays[:] = 0
+
+        if detector:
+            self.wfsDetectorPlane[:] = 0
+
+    def frame(self, scrns, phase_correction=None, read=True, iMatFrame=False):
+        '''
+        Runs one WFS frame
+
+        Runs a single frame of the WFS with a given set of phase screens and
+        some optional correction. If elongation is set, will run the phase
+        calculating and focal plane making methods multiple times for a few
+        different heights of LGS, then sum these onto a ``wfsDetectorPlane``.
+
+        Parameters:
+            scrns (list): A list or dict containing the phase screens
+            phase_correction (ndarray, optional): The correction term to take from the phase screens before the WFS is run.
+            read (bool, optional): Should the WFS be read out? if False, then WFS image is calculated but slopes not calculated. defaults to True.
+            iMatFrame (bool, optional): If True, will assume an interaction matrix is being measured. Turns off some AO loop features before running
+
+        Returns:
+            ndarray: WFS Measurements
+        '''
+
+        # If iMatFrame, turn off unwanted effects
+        if iMatFrame:
+            self.iMat = True
+            removeTT = self.config.removeTT
+            self.config.removeTT = False
+            photonNoise = self.config.photonNoise
+            self.config.photonNoise = False
+            eReadNoise = self.config.eReadNoise
+            self.config.eReadNoise = 0
+
+        self.zeroData(True, True)
+
+        self.phase = self.line_of_sight.frame(scrns, phase_correction)
+        self.phase *= self.nm_to_rad
+
+        # If no elongation
+        # else:
+            # If imat frame, dont want to make it off-axis
+            # if iMatFrame:
+            #     try:
+            #         iMatPhase = interp.zoom(scrns, self.los.nOutPxls, order=1)
+            #         self.los.EField[:] = numpy.exp(1j*iMatPhase*self.los.phs2Rad)
+            #     except ValueError:
+            #         raise ValueError("If iMat Frame, scrn must be ``simSize``")
+            # else:
+            # self.los.makePhase(self.radii)
+
+            # self.uncorrectedPhase = self.los.phase.copy() / self.los.phs2Rad
+            # if phase_correction is not None:
+            #     self.los.performCorrection(phase_correction)
+
+        self.calcFocalPlane()
+
+        if read:
+            self.makeDetectorPlane()
+            self.calculateSlopes()
+            # self.zeroData(detector=False)
+
+        # Turn back on stuff disabled for iMat
+        if iMatFrame:
+            self.iMat = False
+            self.config.removeTT = removeTT
+            self.config.photonNoise = photonNoise
+            self.config.eReadNoise = eReadNoise
+
+        # Check that slopes aint `nan`s. Set to 0 if so
+        if numpy.any(numpy.isnan(self.slopes)):
+            self.slopes[:] = 0
 
         return self.slopes

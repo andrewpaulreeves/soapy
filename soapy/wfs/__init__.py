@@ -11,3 +11,4 @@ from .pyramid import Pyramid
 from .extendedshackhartmann import ExtendedSH
 from .shackhartmann2 import ShackHartmann2
 from .shackhartmann3 import ShackHartmann3
+from .shackhartmann4 import ShackHartmann4

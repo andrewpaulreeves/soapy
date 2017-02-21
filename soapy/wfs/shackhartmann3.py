@@ -260,6 +260,8 @@ class ShackHartmann3(object):
     def interp_to_size(self):
         # Have to make phase the correct size for pixel scale
         numbalib.wfs.zoom(self.phase, self.interp_phase, threads=self.threads)
+
+        # self.interp_phase = interp.zoom(self.phase, self.nx_interp_efield)
         self.scaledEField = numpy.exp(1j*self.interp_phase)
 
         # Apply the scaled pupil mask
@@ -276,6 +278,21 @@ class ShackHartmann3(object):
                 :, :self.nx_subap_interp, :self.nx_subap_interp
                 ] *= numpy.exp(1j*self.tilt_fix)
 
+
+        # Now cut out only the eField across the pupilSize
+        # coord = int(round(int(((self.scaledEFieldSize/2.)
+        #         - (self.wfsConfig.nxSubaps*self.subapFOVSpacing)/2.))))
+        # self.cropEField = self.scaledEField[coord:-coord, coord:-coord]
+
+        #create an array of individual subap EFields
+        # for i in xrange(self.n_subaps):
+        #     x, y = self.interp_subap_coords[i]
+        #     self.subap_interp_efield[i,
+        #     :self.nx_subap_interp, :self.nx_subap_interp] = self.scaledEField[
+        #                             int(x):
+        #                             int(x+self.nx_subap_interp) ,
+        #                             int(y):
+        #                             int(y+self.nx_subap_interp)] * self.tilt_fix
 
     def subaps_to_focus(self, intensity=1):
         #do the fft to all subaps at the same time
@@ -332,17 +349,17 @@ class ShackHartmann3(object):
     def calculate_slopes(self):
         # Sort out FP into subaps
 
-        # numbalib.wfs.chop_subaps(
-        #         self.detector, self.detector_cent_coords, self.nx_subap_pixels,
-        #         self.cent_subap_arrays, threads=self.threads)
+        numbalib.wfs.chop_subaps(
+                self.detector, self.detector_cent_coords, self.nx_subap_pixels,
+                self.cent_subap_arrays, threads=self.threads)
 
-        for i in xrange(self.n_subaps):
-            x, y = self.detector_cent_coords[i]
-            x = int(x)
-            y = int(y)
-            self.cent_subap_arrays[i] = self.detector[
-                                      x:x + self.nx_subap_pixels,
-                                      y:y + self.nx_subap_pixels].astype(DTYPE)
+        # for i in xrange(self.n_subaps):
+        #     x, y = self.detector_cent_coords[i]
+        #     x = int(x)
+        #     y = int(y)
+        #     self.cent_subap_arrays[i] = self.detector[
+        #                               x:x + self.nx_subap_pixels,
+        #                               y:y + self.nx_subap_pixels].astype(DTYPE)
 
         slopes = getattr(centroiders, self.config.centMethod)(
             self.cent_subap_arrays,
@@ -400,6 +417,14 @@ class ShackHartmann3(object):
         # Else, its just phase for the WFS
 
         phase = self.line_of_sight.frame(phase, phase_correction)
+        self.interp_phase[:] = 0
+        self.subap_interp_efield[:] = 0
+        self.detector[:] = 0
+        self.detector_subaps[:] = 0
+        self.subap_focus_intensity[:] = 0
+        self.cent_subap_arrays[:] = 0
+
+        # Array used when centroiding subaps
 
         self.phase = phase.copy() * self.nm_to_rad
 

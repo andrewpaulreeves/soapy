@@ -74,16 +74,14 @@ class Reconstructor(object):
             self.moveScrns = atmos.moveScrns
         self.wfss = wfss
 
-        self.initControlMatrix()
-
-        self.Trecon = 0
-
-    def initControlMatrix(self):
-
         self.controlMatrix = numpy.zeros(
             (self.simConfig.totalWfsData, self.simConfig.totalActs))
         self.controlShape = (
             self.simConfig.totalWfsData, self.simConfig.totalActs)
+
+        self.actuator_values = numpy.zeros(self.simConfig.totalActs)
+
+        self.Trecon = 0
 
     def saveCMat(self):
         """
@@ -175,7 +173,7 @@ class Reconstructor(object):
         self.interaction_matrix = numpy.empty_like(self.controlMatrix.T)
         for dm in xrange(self.simConfig.nDM):
             logger.statusMessage(
-                    dm,  self.simConfig.nDM-1, "Load DM Interaction Matrix")
+                    dm+1,  self.simConfig.nDM-1, "Load DM Interaction Matrix")
             filenameIMat = self.simConfig.simName+"/iMat_dm%d.fits" % dm
             filenameShapes = self.simConfig.simName+"/dmShapes_dm%d.fits" % dm
 
@@ -217,14 +215,16 @@ class Reconstructor(object):
         self.interaction_matrix = numpy.zeros((self.simConfig.totalActs, self.simConfig.totalWfsData))
 
         n_acts = 0
-        n_wfs_measurments = 0
         for dm_n, dm in self.dms.items():
+            n_wfs_measurments = 0
             for wfs_n, wfs in self.wfss.items():
                 logger.info("Creating Interaction Matrix beteen DM %d and WFS %d..." % (dm_n, wfs_n))
                 self.interaction_matrix[
                         n_acts: n_acts+dm.n_acts, n_wfs_measurments: n_wfs_measurments+wfs.n_measurements
                         ] = self.make_dm_iMat(dm,  wfs, callback=callback)
+                n_wfs_measurments += wfs.n_measurements
 
+            n_acts += dm.n_acts
 
     def make_dm_iMat(self, dm, wfs, callback=None):
         """
@@ -245,8 +245,9 @@ class Reconstructor(object):
         # Blank phase to use whilst making iMat
         phase = numpy.zeros((self.simConfig.nDM, self.simConfig.simSize, self.simConfig.simSize))
         for i in xrange(dm.n_acts):
-            # Set vector of iMat commands to 0...
+            # Set vector of iMat commands and phase to 0
             actCommands[:] = 0
+            phase[:] = 0
 
             # Except the one we want to make an iMat for!
             actCommands[i] = dm.dmConfig.iMatValue
@@ -260,7 +261,7 @@ class Reconstructor(object):
             if callback != None:
                 callback()
 
-            logger.statusMessage(i, dm.n_acts,
+            logger.statusMessage(i+1, dm.n_acts,
                                  "Generating {} Actuator DM iMat".format(dm.n_acts))
 
         return iMat
@@ -279,13 +280,13 @@ class Reconstructor(object):
                 logger.info("Load Interaction Matrices failed - will create new one.")
                 self.makeIMat(callback=callback)
                 if self.simConfig.simName is not None:
-                    self.saveIMat()
+                    self.save_interaction_matrix()
                 logger.info("Interaction Matrices Done")
 
         else:
             self.makeIMat(callback=callback)
             if self.simConfig.simName is not None:
-                    self.saveIMat()
+                    self.save_interaction_matrix()
             logger.info("Interaction Matrices Done")
 
         if loadCMat:
@@ -307,14 +308,32 @@ class Reconstructor(object):
                     self.saveCMat()
             logger.info("Command Matrix Generated!")
 
+    def apply_gain(self, closed=False):
 
-    def reconstruct(self,slopes):
+        self.gain = self.dms[0].dmConfig.gain
+
+        # If loop is closed, only add residual measurements onto old
+        # actuator values
+        if closed:
+            self.actuator_values += self.dms[0].dmConfig.gain*self.new_actuator_values
+
+        else:
+            self.actuator_values = (self.dms[0].dmConfig.gain * self.new_actuator_values)\
+                + ( (1. - self.dms[0].dmConfig.gain) * self.actuator_values)
+
+    def reconstruct(self, slopes, closed=False):
         t = time.time()
 
-        dmCommands = self.controlMatrix.T.dot(slopes)
+        self.new_actuator_values = self.controlMatrix.T.dot(slopes)
+
+        self.apply_gain(closed)
+        # self.actuator_values = self.new_actuator_values
 
         self.Trecon += time.time()-t
-        return dmCommands
+        return self.actuator_values
+
+    def reset(self):
+        self.actuator_values[:] = 0
 
 
 class MVM(Reconstructor):
@@ -480,7 +499,7 @@ class LearnAndApply(MVM):
             self.learnSlopes[i] = self.runWfs(scrns)
 
 
-            logger.statusMessage(i, self.learnIters, "Performing Learn")
+            logger.statusMessage(i+1, self.learnIters, "Performing Learn")
             if callback!=None:
                 callback()
             if progressCallback!=None:

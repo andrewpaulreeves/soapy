@@ -461,7 +461,7 @@ class LineOfSight(object):
             correction (list or ndarray): either 2-d array describing correction, or list of correction arrays
         """
         # If just an arary, put in list
-        if isinstance(correction, numpy.ndarray):
+        if isinstance(correction, numpy.ndarray) and correction.ndim == 2:
             correction = [correction]
         
         for corr in correction:
@@ -510,7 +510,8 @@ class LineOfSight(object):
             #If scrns is not dict or list, assume array and put in list
             t = type(scrns)
             if t != dict and t != list:
-                scrns = [scrns]
+                if scrns.ndim == 2:
+                    scrns = [scrns]
             self.scrns = scrns
 
             self.makePhase(self.radii)
@@ -519,4 +520,6 @@ class LineOfSight(object):
         if correction is not None:
             self.performCorrection(correction)
 
+        p = self.soapyConfig.sim.simPad
+        self.output_phase = self.phase[p:-p, p:-p]
         return self.residual

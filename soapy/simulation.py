@@ -463,7 +463,7 @@ class Sim(object):
             if self.config.dms[dm].closed == closed:
                 self.dmShapes[dm] = (self.dms[dm].dmFrame(
                         dmCommands[ self.dmAct1[dm]:
-                                    self.dmAct1[dm]+self.dms[dm].n_acts], closed))
+                                    self.dmAct1[dm]+self.dms[dm].n_acts]))
 
         self.Tdm += time.time() - t
         return self.dmShapes
@@ -485,6 +485,7 @@ class Sim(object):
 
             # Normalise long exposure psf
             #self.sciImgs[sci] /= self.sciImgs[sci].sum()
+
             self.sciCams[sci].longExpStrehl = (
                     self.sciImgs[sci].max()/
                     self.sciImgs[sci].sum()/
@@ -508,7 +509,7 @@ class Sim(object):
 
         # Get dmCommands from reconstructor
         if self.config.sim.nDM:
-            self.dmCommands[:] = self.recon.reconstruct(self.slopes)
+            self.dmCommands[:] = self.recon.reconstruct(self.slopes, self.config.dms[0].closed)
 
         # Delay the dmCommands if loopDelay is configured
         self.dmCommands = self.buffer.delay(self.dmCommands, self.config.sim.loopDelay)
@@ -545,7 +546,6 @@ class Sim(object):
 
         Runs a WFS iteration, reconstructs the phase, runs DMs and finally the science cameras. Also makes some nice output to the console and can add data to the Queue for the GUI if it has been requested. Repeats for nIters.
         """
-
         self.go = True
         try:
             while self.iters < self.config.sim.nIters:
@@ -570,6 +570,7 @@ class Sim(object):
         self.slopes[:] = 0
         self.dmCommands[:] = 0
         self.longStrehl[:] = 0
+        self.recon.reset()
         for sci in self.sciImgs.values(): sci[:] = 0
         for dm in self.dms.values(): dm.reset()
 

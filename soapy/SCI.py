@@ -30,12 +30,12 @@ CDTYPE = numpy.complex64
 
 class PSF(object):
 
-    def __init__(self, soapyConfig, nSci=0, mask=None):
+    def __init__(self, soapyConfig, sci_index=0, mask=None):
 
         self.soapyConfig = soapyConfig
         self.simConfig = soapyConfig.sim
         self.telConfig = soapyConfig.tel
-        self.config = self.sciConfig = soapyConfig.scis[nSci] # For compatability
+        self.config = self.sciConfig = soapyConfig.scis[sci_index] # For compatability
         self.atmosConfig = soapyConfig.atmos
         self.mask = mask
         self.FOVrad = self.config.FOV * numpy.pi / (180. * 3600)
@@ -55,6 +55,7 @@ class PSF(object):
         self.los = lineofsight.LineOfSight(
                 self.config, self.soapyConfig,
                 propagationDirection="down")
+        self.line_of_sight = self.los
 
         # Make a default circular mask of the pupil size if not provided
         if mask is None:
@@ -95,7 +96,9 @@ class PSF(object):
                 (self.los.nOutPxls,) * 2, dtype=CDTYPE)
         self.calcFocalPlane()
         self.bestPSF = self.focalPlane.copy()
+        self.bestPSF /= self.bestPSF.sum()
         self.psfMax = self.bestPSF.max()
+        self.strehl_reference = self.psfMax
         self.longExpStrehl = 0
         self.instStrehl = 0
 

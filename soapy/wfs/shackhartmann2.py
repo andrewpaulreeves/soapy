@@ -77,6 +77,9 @@ class ShackHartmann2(object):
         self.nx_subap_interp = int(round(
                 self.subap_fov * (numpy.pi/(180*3600)) * self.subap_diameter
                 / self.wavelength))
+        logger.info("Active Subapertures: {}".format(self.n_subaps))
+        logger.debug("Subap phase elements: {}".format(self.nx_subap_size))
+        logger.debug("nx_subap_interp: {}".format(self.nx_subap_interp))
 
         self.actual_pxl_scale = self.wavelength * self.nx_subap_interp / ((numpy.pi/(180*3600)) * self.subap_diameter * self.nx_subap_pxls)
         logger.info('Actual WFS Pixel scale: {}" per pixel'.format(self.actual_pxl_scale))
@@ -95,7 +98,7 @@ class ShackHartmann2(object):
         while self.nx_subap_focus_efield < self.nx_subap_interp:
             self.detector_bin_ratio += 1
             self.nx_subap_focus_efield = self.nx_subap_pxls * self.detector_bin_ratio
-        logger.info("Set detector bin ratio to {}, nx_subap_focus_efield: {}".format(
+        logger.debug("Set detector bin ratio to {}, nx_subap_focus_efield: {}".format(
                 self.detector_bin_ratio, self.nx_subap_focus_efield))
 
         # make an fft object
@@ -147,6 +150,7 @@ class ShackHartmann2(object):
         Calculates the required tilt to add to avoid the PSF being centred on
         only 1 pixel
         """
+        logger.debug("Calculate tilt correction")
         if not self.nx_subap_pxls % 2:
             # If pixels per subap is even
             # Angle we need to correct for half a pixel

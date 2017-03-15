@@ -29,7 +29,9 @@ from scipy.interpolate import interp2d
 
 from . import logger
 from .aotools import opticalpropagation, interp
-from . import numbalib
+from . import numbalib, gpulib
+from numba import cuda
+
 DTYPE = numpy.float32
 CDTYPE = numpy.complex64
 
@@ -92,8 +94,6 @@ class LineOfSight(object):
         self.propagation_direction = propagation_direction
 
         self.calcInitParams(out_pixel_scale, nx_out_pixels)
-
-        self.allocDataArrays()
 
         # Can be set to use other values as metapupil position
         self.metaPupilPos = metaPupilPos
@@ -188,8 +188,7 @@ class LineOfSight(object):
 
         self.radii = None
 
-        self.phase_screens = numpy.zeros((self.n_layers, self.nx_out_pixels, self.nx_out_pixels))
-        self.correction_screens = numpy.zeros((self.n_dm, self.nx_out_pixels, self.nx_out_pixels))
+        self.allocDataArrays()
 
     def calculate_altitude_coords(self, layer_altitude):
         """
@@ -234,8 +233,10 @@ class LineOfSight(object):
         self.phase = numpy.zeros([self.nx_out_pixels] * 2, dtype=DTYPE)
         self.EField = numpy.zeros([self.nx_out_pixels] * 2, dtype=CDTYPE)
 
+        self.phase_screens = numpy.zeros((self.n_layers, self.nx_out_pixels, self.nx_out_pixels))
+        self.correction_screens = numpy.zeros((self.n_dm, self.nx_out_pixels, self.nx_out_pixels))
 
-######################################################
+    ######################################################
 
     def zeroData(self, **kwargs):
         """
@@ -439,3 +440,106 @@ def physical_atmosphere_propagation(
         # logger.debug("Propagation: {}, {} m. Total: {}".format(i, z, z_total))
 
     return EFieldBuf
+
+class LineOfSightGPU(LineOfSight):
+
+    def calcInitParams(self, out_pixel_scale=None, nx_out_pixels=None):
+        super(LineOfSightGPU, self).calcInitParams(out_pixel_scale, nx_out_pixels)
+        self.layer_metapupil_coords_gpu = cuda.to_device(self.layer_metapupil_coords)
+        self.dm_metapupil_coords_gpu = cuda.to_device(self.dm_metapupil_coords)
+
+
+    def allocDataArrays(self):
+        super(LineOfSightGPU, self).allocDataArrays()
+        self.phase_gpu = cuda.to_device(self.phase)
+        self.EField_gpu = cuda.to_device(self.EField)
+
+        self.phase_screens_gpu = cuda.to_device(self.phase_screens)
+        self.correction_screens_gpu = cuda.to_device(self.correction_screens)
+
+    def zeroData(self, **kwargs):
+        """
+        Sets the phase and complex amp data to zero
+        """
+        super(LineOfSightGPU, self).zeroData(**kwargs)
+        self.EField_gpu[:] = 0
+        self.phase_gpu[:] = 0
+
+    def makePhase(self, radii=None, apos=None):
+        """
+        Generates the required phase or EField. Uses difference approach depending on whether propagation is geometric or physical
+        (makePhaseGeometric or makePhasePhys respectively)
+        Parameters:
+            radii (dict, optional): Radii of each meta pupil of each screen height in pixels. If not given uses pupil radius.
+            apos (ndarray, optional):  The angular position of the GS in radians. If not set, will use the config position
+        """
+
+        gpulib.los.bilinear_interp(
+                self.scrns_gpu, self.layer_metapupil_coords_gpu, self.phase_screens_gpu)
+
+        # for i in range(len(self.scrns_gpu)):
+        #     # print(raw_phase_screens[i])
+        #     gpulib.los.bilinear_interp(
+        #             self.scrns_gpu[i],
+        #             self.layer_metapupil_coords_gpu[i],
+        #             self.phase_screens_gpu[i])
+        #
+        #     self.phase_screens[i] = self.phase_screens_gpu[i].copy_to_host()
+        # self.phase_screens[:] = self.phase_screens_gpu.copy_to_host()
+
+        # Check if geometric or physical
+        if self.config.propagationMode == "Physical":
+            return self.makePhasePhys(radii)
+        else:
+            return self.makePhaseGeometric(radii)
+
+
+    def makePhaseGeometric(self, radii=None, apos=None):
+
+
+        gpulib.los.geometric_propagation_kernel[(32, 32),(3,3)](self.phase_screens_gpu, self.phase_gpu)
+
+        # print("Copy Phase To Host")
+        self.phase[:] = self.phase_gpu.copy_to_host()
+        # print("Done Copying!")
+        # print("Phase GPU max: {}, phase max:{}".format(self.phase_gpu.copy_to_host().max(), self.phase.max()))
+
+        # Convert phase to radians
+        self.phase *= self.phs2Rad
+
+        # Change sign if propagating up
+        if self.propagation_direction == 'up':
+            self.phase *= -1
+
+        self.EField[:] = numpy.exp(1j*self.phase)
+
+        return self.EField
+
+    def frame(self, scrns=None, correction=None):
+        '''
+        Runs one frame through a line of sight
+        Finds the phase or complex amplitude through line of sight for a
+        single simulation frame, with a given set of phase screens and
+        some optional correction.
+        Parameters:
+            scrns (list): A list or dict containing the phase screens
+            correction (ndarray, optional): The correction term to take from the phase screens before the WFS is run.
+            read (bool, optional): Should the WFS be read out? if False, then WFS image is calculated but slopes not calculated. defaults to True.
+        Returns:
+            ndarray: WFS Measurements
+        '''
+
+        # self.zeroData()
+
+        if scrns is not None:
+            self.scrns = scrns
+
+            self.scrns_gpu = cuda.to_device(self.scrns)
+
+            self.makePhase(self.radii)
+
+        self.residual = self.phase
+        if correction is not None:
+            self.performCorrection(correction)
+
+        return self.residual

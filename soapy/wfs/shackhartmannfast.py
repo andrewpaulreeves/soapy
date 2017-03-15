@@ -97,7 +97,7 @@ class ShackHartmannFast(base.WFS):
         """
         Initialises the ``LineOfSight`` object, which gets the phase or EField in a given direction through turbulence.
         """
-        self.los = lineofsight_fast.LineOfSight(
+        self.los = lineofsight_fast.LineOfSightGPU(
                 self.config, self.soapy_config,
                 propagation_direction="down")
 

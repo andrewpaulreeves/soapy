@@ -28,7 +28,7 @@ import numpy
 from scipy.interpolate import interp2d
 from numba import cuda
 
-from . import logger
+from . import logger, gpulib
 from .aotools import opticalpropagation, interp
 
 DTYPE = numpy.float32

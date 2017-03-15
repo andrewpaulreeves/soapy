@@ -93,6 +93,17 @@ class ShackHartmann(base.WFS):
             logger.warning("requested WFS FFT Padding less than FOV size... Setting oversampling to: %d"%self.wfsConfig.fftOversamp)
         self.calcTiltCorrect()
 
+        #Calculate the FFT padding to use
+        self.subapFFTPadding = self.wfsConfig.pxlsPerSubap2 * self.wfsConfig.fftOversamp
+        if self.subapFFTPadding < self.subapFOVSpacing:
+            while self.subapFFTPadding<self.subapFOVSpacing:
+                self.wfsConfig.fftOversamp+=1
+                self.subapFFTPadding\
+                        =self.wfsConfig.pxlsPerSubap2*self.wfsConfig.fftOversamp
+
+            logger.warning("requested WFS FFT Padding less than FOV size... Setting oversampling to: %d"%self.wfsConfig.fftOversamp)
+        self.calcTiltCorrect()
+
     def findActiveSubaps(self):
         '''
         Finds the subapertures which are not empty space

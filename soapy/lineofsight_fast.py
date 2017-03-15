@@ -29,7 +29,9 @@ from scipy.interpolate import interp2d
 
 from . import logger
 from .aotools import opticalpropagation, interp
-from . import numbalib
+from . import numbalib, gpulib
+from numba import cuda
+
 DTYPE = numpy.float32
 CDTYPE = numpy.complex64
 
@@ -188,9 +190,6 @@ class LineOfSight(object):
 
         self.radii = None
 
-        self.phase_screens = numpy.zeros((self.n_layers, self.nx_out_pixels, self.nx_out_pixels))
-        self.correction_screens = numpy.zeros((self.n_dm, self.nx_out_pixels, self.nx_out_pixels))
-
     def calculate_altitude_coords(self, layer_altitude):
         """
         Calculate the co-ordinates of vertices of fo the meta-pupil at altitude given a guide star
@@ -234,7 +233,8 @@ class LineOfSight(object):
         self.phase = numpy.zeros([self.nx_out_pixels] * 2, dtype=DTYPE)
         self.EField = numpy.zeros([self.nx_out_pixels] * 2, dtype=CDTYPE)
 
-
+        self.phase_screens = numpy.zeros((self.n_layers, self.nx_out_pixels, self.nx_out_pixels))
+        self.correction_screens = numpy.zeros((self.n_dm, self.nx_out_pixels, self.nx_out_pixels))
 ######################################################
 
     def zeroData(self, **kwargs):
@@ -439,3 +439,86 @@ def physical_atmosphere_propagation(
         # logger.debug("Propagation: {}, {} m. Total: {}".format(i, z, z_total))
 
     return EFieldBuf
+
+
+class LineOfSightGPU(LineOfSight):
+
+    def calcInitParams(self, out_pixel_scale=None, nx_out_pixels=None):
+        super(LineOfSightGPU, self).calcInitParams(out_pixel_scale, nx_out_pixels)
+        print("coordinates shape".format(self.layer_metapupil_coords.shape))
+        self.layer_metapupil_coords_gpu = cuda.to_device(self.layer_metapupil_coords)
+        self.dm_metapupil_coords_gpu = cuda.to_device(self.dm_metapupil_coords)
+
+    def allocDataArrays(self):
+        super(LineOfSightGPU, self).allocDataArrays()
+        self.phase_gpu = cuda.to_device(self.phase)
+        self.EField_gpu = cuda.to_device(self.EField)
+
+        self.phase_screens_gpu = cuda.to_device(self.phase_screens)
+        self.correction_screens_gpu = cuda.to_device(self.correction_screens)
+
+    def zeroData(self, **kwargs):
+        """
+        Sets the phase and complex amp data to zero
+        """
+        super(LineOfSightGPU, self).zeroData(**kwargs)
+        self.EField_gpu[:] = 0
+        self.phase_gpu[:] = 0
+
+    def makePhase(self, radii=None, apos=None):
+        """
+        Generates the required phase or EField. Uses difference approach depending on whether propagation is geometric or physical
+        (makePhaseGeometric or makePhasePhys respectively)
+
+        Parameters:
+            radii (dict, optional): Radii of each meta pupil of each screen height in pixels. If not given uses pupil radius.
+            apos (ndarray, optional):  The angular position of the GS in radians. If not set, will use the config position
+        """
+
+        for i in range(self.scrns_gpu.shape[0]):
+            # print(raw_phase_screens[i])
+            gpulib.los.bilinear_interp(
+                self.scrns_gpu[i],
+                self.layer_metapupil_coords_gpu[i, 0],
+                self.layer_metapupil_coords_gpu[i, 1],
+                self.phase_screens_gpu[i])
+
+        self.phase_screens[:] = self.phase_screens_gpu.to_host()
+
+        # Check if geometric or physical
+        if self.config.propagationMode == "Physical":
+            return self.makePhasePhys(radii)
+        else:
+            return self.makePhaseGeometric(radii)
+
+
+    def frame(self, scrns=None, correction=None):
+        '''
+        Runs one frame through a line of sight
+
+        Finds the phase or complex amplitude through line of sight for a
+        single simulation frame, with a given set of phase screens and
+        some optional correction.
+
+        Parameters:
+            scrns (list): A list or dict containing the phase screens
+            correction (ndarray, optional): The correction term to take from the phase screens before the WFS is run.
+            read (bool, optional): Should the WFS be read out? if False, then WFS image is calculated but slopes not calculated. defaults to True.
+
+        Returns:
+            ndarray: WFS Measurements
+        '''
+
+        # self.zeroData()
+
+        if scrns is not None:
+            self.scrns = scrns
+            self.scrns_gpu = cuda.to_device(self.scrns.astype("float32"))
+
+            self.makePhase(self.radii)
+
+        self.residual = self.phase
+        if correction is not None:
+            self.performCorrection(correction)
+
+        return self.residual

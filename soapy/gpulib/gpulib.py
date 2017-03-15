@@ -5,64 +5,22 @@ import math
 # Cuda threads per block
 CUDA_TPB = 32
 
-def linterp2d(data, xCoords, yCoords, interpArray, threadsPerBlock=None):
-    """
-    2-D interpolation using purely python - fast if compiled with numba
-    Parameters:
-        array (ndarray): The 2-D array to interpolate
-        xCoords (ndarray): A 1-D array of x-coordinates
-        yCoords (ndarray): A 2-D array of y-coordinates
-        interpArray (ndarray): The array to place the calculation
-    Returns:
-        interpArray (ndarray): A pointer to the calculated ``interpArray''
-    """
-    if threadsPerBlock is None:
-        threadsPerBlock = CUDA_TPB
+def zero_data(data, threads_per_block):
 
-    tpb = (threadsPerBlock, )*2
-    # blocks per grid
-    bpg = (
-            numpy.ceil(interpArray.shape[0]/tpb),
-            numpy.ceil(interpArray.shape[1]/tpb)
-            )
+    if threads_per_block is None:
+        threads_per_block = CUDA_TPB
 
-    linterp2d_kernel[tpb, bpg](data, xCoords, yCoords, interpArray)
+    bpg = int(numpy.ceil(data.size / threads_per_block))
 
-    return interpArray
+    zero_data_kernel[threads_per_block, bpg](data)
 
 @cuda.jit
-def linterp2d_kernel(data, xCoords, yCoords, interpArray):
-    """
-    2-D interpolation using purely python - fast if compiled with numba
-    Parameters:
-        array (ndarray): The 2-D array to interpolate
-        xCoords (ndarray): A 1-D array of x-coordinates
-        yCoords (ndarray): A 2-D array of y-coordinates
-        interpArray (ndarray): The array to place the calculation
-    Returns:
-        interpArray (ndarray): A pointer to the calculated ``interpArray''
-    """
-    # Thread id in a 1D block
-    i, j = cuda.grid(2)
-
-    # Get corresponding coordinates in image
-    x = xCoords[i]
-    x1 = numba.int32(x)
-    y = yCoords[j]
-    y1 = numba.int32(y)
-
-    # Do bilinear interpolation
-    xGrad1 = data[x1+1, y1] - data[x1, y1]
-    a1 = data[x1, y1] + xGrad1*(x-x1)
-
-    xGrad2 = data[x1+1, y1+1] - data[x1, y1+1]
-    a2 = data[x1, y1+1] + xGrad2*(x-x1)
-
-    yGrad = a2 - a1
-    interpArray[i,j] = a1 + yGrad*(y-y1)
+def zero_data_kernel(data):
+    tx = cuda.threadsIdx.x
+    data[tx] = 0
 
 def bilinterp2d_regular(
-        data, xMin, xMax, xSize, yMin, yMax, ySize, interpArray, threadsPerBlock=None):
+        data, xMin, xMax, xSize, yMin, yMax, ySize, interpArray, threads_per_block=None):
     """
     2-D interpolation on a regular grid using purely python - 
     fast if compiled with numba
@@ -74,14 +32,14 @@ def bilinterp2d_regular(
     Returns:
         interpArray (ndarray): A pointer to the calculated ``interpArray''
     """
-    if threadsPerBlock is None:
-        threadsPerBlock = CUDA_TPB
+    if threads_per_block is None:
+        threads_per_block = CUDA_TPB
 
-    tpb = (threadsPerBlock, )*2
+    tpb = (threads_per_block,) * 2
     # blocks per grid
     bpg = (
-            int(numpy.ceil(interpArray.shape[0]/threadsPerBlock)),
-            int(numpy.ceil(interpArray.shape[1]/threadsPerBlock))
+            int(numpy.ceil(interpArray.shape[0] / threads_per_block)),
+            int(numpy.ceil(interpArray.shape[1] / threads_per_block))
             )
     bilinterp2d_regular_kernel[tpb, bpg](data, xMin, xMax, xSize, yMin, yMax, ySize, interpArray)
 
@@ -119,7 +77,7 @@ def bilinterp2d_regular_kernel(
     interpArray[i,j] += a1 + yGrad*(y-y1)
 
 
-def zoom(data, zoomArray, threadsPerBlock=None):
+def zoom(data, zoomArray, threads_per_block=None):
     """
     2-D zoom interpolation using purely python - fast if compiled with numba.
     Both the array to zoom and the output array are required as arguments, the
@@ -130,10 +88,10 @@ def zoom(data, zoomArray, threadsPerBlock=None):
     Returns:
         ndarray: A pointer to the zoomArray
     """
-    if threadsPerBlock is None:
-        threadsPerBlock = CUDA_TPB
+    if threads_per_block is None:
+        threads_per_block = CUDA_TPB
 
-    tpb = (threadsPerBlock, )*2
+    tpb = (threads_per_block,) * 2
     # blocks per grid
     bpg = (
             numpy.ceil(float(zoomArray.shape[0])/tpb),

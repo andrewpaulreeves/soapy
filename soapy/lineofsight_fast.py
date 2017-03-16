@@ -100,6 +100,7 @@ class LineOfSight(object):
 
         self.thread_pool = numbalib.ThreadPool(self.threads)
 
+        self.cuda_context = cuda.current_context()
 
     # Some attributes for compatability between WFS and others
     @property
@@ -285,7 +286,7 @@ class LineOfSight(object):
         if self.propagation_direction == 'up':
             self.phase *= -1
 
-        self.EField[:] = numpy.exp(1j*self.phase)
+        # self.EField[:] = numpy.exp(1j*self.phase)
 
         return self.EField
 
@@ -324,9 +325,11 @@ class LineOfSight(object):
         # self.phase -= corr * self.phs2Rad
 
         # Also correct phase in case its required
-        self.residual = self.phase / self.phs2Rad - self.phase_correction
+        # self.residual = self.phase / self.phs2Rad - self.phase_correction
 
-        self.phase = self.residual * self.phs2Rad
+        self.phase[:] -= (self.phase_correction * self.phs2Rad)
+        self.residual = self.phase.copy()
+        # self.phase[:] = self.residual * self.phs2Rad
 
     def frame(self, scrns=None, correction=None):
         '''
@@ -441,6 +444,8 @@ def physical_atmosphere_propagation(
 
     return EFieldBuf
 
+
+
 class LineOfSightGPU(LineOfSight):
 
     def calcInitParams(self, out_pixel_scale=None, nx_out_pixels=None):
@@ -474,18 +479,8 @@ class LineOfSightGPU(LineOfSight):
             apos (ndarray, optional):  The angular position of the GS in radians. If not set, will use the config position
         """
 
-        gpulib.los.bilinear_interp(
+        gpulib.los.get_phase(
                 self.scrns_gpu, self.layer_metapupil_coords_gpu, self.phase_screens_gpu)
-
-        # for i in range(len(self.scrns_gpu)):
-        #     # print(raw_phase_screens[i])
-        #     gpulib.los.bilinear_interp(
-        #             self.scrns_gpu[i],
-        #             self.layer_metapupil_coords_gpu[i],
-        #             self.phase_screens_gpu[i])
-        #
-        #     self.phase_screens[i] = self.phase_screens_gpu[i].copy_to_host()
-        # self.phase_screens[:] = self.phase_screens_gpu.copy_to_host()
 
         # Check if geometric or physical
         if self.config.propagationMode == "Physical":
@@ -496,24 +491,47 @@ class LineOfSightGPU(LineOfSight):
 
     def makePhaseGeometric(self, radii=None, apos=None):
 
-
-        gpulib.los.geometric_propagation_kernel[(32, 32),(3,3)](self.phase_screens_gpu, self.phase_gpu)
-
-        # print("Copy Phase To Host")
-        self.phase[:] = self.phase_gpu.copy_to_host()
-        # print("Done Copying!")
-        # print("Phase GPU max: {}, phase max:{}".format(self.phase_gpu.copy_to_host().max(), self.phase.max()))
-
-        # Convert phase to radians
-        self.phase *= self.phs2Rad
-
-        # Change sign if propagating up
         if self.propagation_direction == 'up':
-            self.phase *= -1
+            direction_multiplier = -1
+        else:
+            direction_multiplier = 1
 
-        self.EField[:] = numpy.exp(1j*self.phase)
+        gpulib.los.geometric_propagation(
+                self.phase_screens_gpu, self.phase_gpu, self.phs2Rad, direction_multiplier)
 
-        return self.EField
+
+    def performCorrection(self, correction):
+        """
+        Corrects the aberrated line of sight with some given correction phase
+
+        Parameters:
+            correction (list or ndarray): either 2-d array describing correction, or list of correction arrays
+        """
+
+        # numbalib.los.get_phase_slices(
+        #     correction, self.dm_metapupil_coords, self.correction_screens, self.thread_pool)
+
+        correction_gpu = cuda.to_device(correction.astype("float32"))
+
+        gpulib.los.apply_correction(
+                correction_gpu, self.dm_metapupil_coords_gpu, self.phase_gpu, self.phs2Rad)
+
+        # self.phase_correction = self.correction_screens.sum(0)
+
+        # Correct EField
+        # self.EField *= numpy.exp(-1j * self.phase_correction * self.phs2Rad)
+
+        # self.phase -= corr * self.phs2Rad
+
+        # Also correct phase in case its required
+
+        # self.phase = self.phase_gpu.copy_to_host(self.phase)
+        #
+        # self.residual = self.phase
+
+        # self.residual = self.phase / self.phs2Rad - self.phase_correction
+        #
+        # self.phase[:] = self.residual * self.phs2Rad
 
     def frame(self, scrns=None, correction=None):
         '''
@@ -533,13 +551,16 @@ class LineOfSightGPU(LineOfSight):
 
         if scrns is not None:
             self.scrns = scrns
-
             self.scrns_gpu = cuda.to_device(self.scrns)
-
             self.makePhase(self.radii)
 
         self.residual = self.phase
         if correction is not None:
             self.performCorrection(correction)
+        self.cuda_context.push()
+        self.phase_gpu.copy_to_host(self.phase)
+        self.EField = numpy.exp(1j*self.phase)
 
-        return self.residual
+        self.residual = self.phase.copy()
+
+        return self.phase

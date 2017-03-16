@@ -39,31 +39,28 @@ class ShackHartmannGPU(shackhartmannfast.ShackHartmannFast):
         self.slopes_gpu = cuda.to_device(self.slopes)
 
 
-    def calcFocalPlane(self, intensity=1):
-
-        if self.config.propagationMode=="Geometric":
-            # Have to make phase the correct size if geometric prop
-            gpulib.wfs.zoom_to_efield(self.los.phase_gpu, self.interp_efield_gpu)
-        else:
-            scaledEField = self.EField_gpu
-
-        scaledEField = self.interp_efield_gpu.copy_to_host()
-
-
-        #create an array of individual subap EFields
-        self.FFT.inputData[:] = 0
-        numbalib.wfs.chop_subaps_mask_pool(
-                scaledEField, self.interp_subap_coords, self.nx_subap_interp,
-                self.FFT.inputData, self.scaledMask, thread_pool=self.thread_pool)
-        self.FFT.inputData[:, :self.nx_subap_interp, :self.nx_subap_interp] *= self.tilt_fix_efield
-        self.FFT()
-
-        self.temp_subap_focus = AOFFT.ftShift2d(self.FFT.outputData)
-
-        # numbalib.abs_squared(
-        #         self.temp_subap_focus, self.subap_focus_intensity, threads=self.threads)
-
-        self.subap_focus_intensity[:] = abs(self.temp_subap_focus)**2
-
-        if intensity != 1:
-            self.subap_focus_intensity *= intensity
+    # def calcFocalPlane(self, intensity=1):
+    #
+    #     if self.config.propagationMode == "Geometric":
+    #         # Have to make phase the correct size if geometric prop
+    #         gpulib.wfs.zoom_to_efield(self.los.phase_gpu, self.interp_efield_gpu)
+    #         scaledEField = self.interp_efield_gpu.copy_to_host()
+    #
+    #     else:
+    #         scaledEField = self.EField_gpu.copy_to_host()
+    #
+    #     # create an array of individual subap EFields
+    #     self.FFT.inputData[:] = 0
+    #     numbalib.wfs.chop_subaps_mask_pool(
+    #             scaledEField, self.interp_subap_coords, self.nx_subap_interp,
+    #             self.FFT.inputData, self.scaledMask, thread_pool=self.thread_pool)
+    #     self.FFT.inputData[:, :self.nx_subap_interp, :self.nx_subap_interp] *= self.tilt_fix_efield
+    #     self.FFT()
+    #
+    #     self.temp_subap_focus = AOFFT.ftShift2d(self.FFT.outputData)
+    #
+    #
+    #     self.subap_focus_intensity[:] = abs(self.temp_subap_focus)**2
+    #
+    #     if intensity != 1:
+    #         self.subap_focus_intensity *= intensity

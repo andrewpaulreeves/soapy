@@ -359,8 +359,7 @@ class WFS(object):
         return elongPos
 
     def zeroPhaseData(self):
-        self.los.EField[:] = 0
-        self.los.phase[:] = 0
+        self.los.zeroData()
 
 
     def makeElongationFrame(self, correction=None):
@@ -379,7 +378,7 @@ class WFS(object):
             self.los.makePhase(self.elongRadii[i], apos=self.elongPos[i])
 
             # Make a copy of the uncorrectedPhase for plotting
-            self.uncorrectedPhase = self.los.phase.copy()#/self.los.phs2Rad
+            self.uncorrectedPhase = self.los.phase.copy()/self.los.phs2Rad
 
             # Add the effect of the defocus and possibly tilt
             self.los.EField *= numpy.exp(1j*self.elongPhaseAdditions[i])
@@ -434,7 +433,7 @@ class WFS(object):
 
             self.los.makePhase()
 
-            self.uncorrectedPhase = self.los.phase.copy()#/self.los.phs2Rad
+            self.uncorrectedPhase = self.los.phase.copy()/self.los.phs2Rad
             if phase_correction is not None:
                 self.los.performCorrection(phase_correction)
                 

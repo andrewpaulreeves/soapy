@@ -86,7 +86,7 @@ class PSF(object):
                 THREADS=self.config.fftwThreads)
 
         # Convert phase in nm to radians at science wavelength
-        # self.phsNm2Rad = 2*numpy.pi/(self.sciConfig.wavelength*10**9)
+        self.phsNm2Rad = 2*numpy.pi/(self.sciConfig.wavelength*10**9)
 
         # Allocate some useful arrays
         self.interp_coords = numpy.linspace(self.sim_pad, self.pupil_size + self.sim_pad, self.FOVPxlNo).astype(DTYPE)

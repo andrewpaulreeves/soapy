@@ -49,7 +49,7 @@ class PSF(object):
             self.padFOVPxlNo += 1
 
         # Init line of sight - Get the phase at the right size for the FOV
-        self.los = lineofsight_fast.LineOfSightGPU(
+        self.los = lineofsight_fast.LineOfSight(
                 self.config, self.soapyConfig,
                 propagation_direction="down")
 
@@ -85,7 +85,7 @@ class PSF(object):
                 THREADS=self.config.fftwThreads)
 
         # Convert phase in nm to radians at science wavelength
-        self.phsNm2Rad = 2*numpy.pi/(self.sciConfig.wavelength*10**9)
+        # self.phsNm2Rad = 2*numpy.pi/(self.sciConfig.wavelength*10**9)
 
         # Calculate ideal PSF for purposes of strehl calculation
         self.los.EField[:] = numpy.ones(

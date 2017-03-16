@@ -379,7 +379,7 @@ class WFS(object):
             self.los.makePhase(self.elongRadii[i], apos=self.elongPos[i])
 
             # Make a copy of the uncorrectedPhase for plotting
-            self.uncorrectedPhase = self.los.phase.copy()/self.los.phs2Rad
+            self.uncorrectedPhase = self.los.phase.copy()#/self.los.phs2Rad
 
             # Add the effect of the defocus and possibly tilt
             self.los.EField *= numpy.exp(1j*self.elongPhaseAdditions[i])
@@ -431,17 +431,10 @@ class WFS(object):
 
         # If no elongation
         else:
-            # If imat frame, dont want to make it off-axis
-            # if iMatFrame:
-            #     try:
-            #         iMatPhase = interp.zoom(scrns, self.los.nOutPxls, order=1)
-            #         self.los.EField[:] = numpy.exp(1j*iMatPhase*self.los.phs2Rad)
-            #     except ValueError:
-            #         raise ValueError("If iMat Frame, scrn must be ``simSize``")
-            # else:
-            self.los.makePhase()#self.radii)
 
-            self.uncorrectedPhase = self.los.phase.copy()/self.los.phs2Rad
+            self.los.makePhase()
+
+            self.uncorrectedPhase = self.los.phase.copy()#/self.los.phs2Rad
             if phase_correction is not None:
                 self.los.performCorrection(phase_correction)
                 

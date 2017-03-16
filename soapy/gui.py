@@ -21,11 +21,13 @@ The GUI for the Soapy adaptive optics simulation
 """
 
 import sys
+from . import logger
 
 try:
     from PyQt5 import QtGui, QtWidgets, QtCore
     PYQT_VERSION = 5
 except (ImportError ,RuntimeError):
+    logger.info("PyQt5 import failed - attempting to import PyQt4 instead")
     from PyQt4 import QtGui, QtCore
     QtWidgets = QtGui
     PYQT_VERSION = 4

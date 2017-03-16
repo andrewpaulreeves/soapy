@@ -6,7 +6,7 @@ import numpy
 # Cuda threads per block
 CUDA_TPB = 32
 
-def zoomToEField(data, zoomArray, threadsPerBlock=None):
+def zoom_to_efield(data, zoomArray, threadsPerBlock=None):
     """
     2-D zoom interpolation using purely python - fast if compiled with numba.
     Both the array to zoom and the output array are required as arguments, the
@@ -27,12 +27,12 @@ def zoomToEField(data, zoomArray, threadsPerBlock=None):
             int(numpy.ceil(float(zoomArray.shape[1])/threadsPerBlock))
             )
 
-    zoomToEField_kernel[tpb, bpg](data, zoomArray)
+    zoom_to_efield_kernel[tpb, bpg](data, zoomArray)
 
     return zoomArray
 
 @cuda.jit
-def zoomToEField_kernel(data, zoomArray):
+def zoom_to_efield_kernel(data, zoomArray):
     """
     2-D zoom interpolation using purely python - fast if compiled with numba.
     Both the array to zoom and the output array are required as arguments, the

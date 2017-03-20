@@ -658,12 +658,13 @@ class WfsConfig(ConfigObj):
         ``propagationMode``     string: Mode of light propogation
                                 from GS. Can be "Physical" or
                                 "Geometric"\**.                     ``"Geometric"``
-        ``subapFieldStop``      bool: if True, add a field stop to
-                                the wfs to prevent spots wandering
+        ``subapFieldStop``      float: Size of the SH sub-aperture
+                                field stop in arc-seconds 
+                                that spots wandering
                                 into adjacent sub-apertures. if
-                                False, oversample subap FOV by a
-                                factor of 2 to allow into adjacent
-                                subaps.                             ``False``
+                                ``None``, oversample subap FOV by 
+                                a factor of 2 to allow into 
+                                adjacent subaps.                     ``None``
         ``removeTT``            bool: if True, remove TT signal
                                 from WFS slopes before
                                 reconstruction.\**                  ``False``

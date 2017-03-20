@@ -60,15 +60,16 @@ class ShackHartmannFast(base.WFS):
                 self.subap_diam * self.subap_fov_rad/ self.config.wavelength))
 
         # make twice as big to double subap FOV (unless told not to!)
-        if self.config.subapFieldStop==True:
-            self.SUBAP_OVERSIZE = 1
-        else:
+        if self.config.subapFieldStop is None:
             self.SUBAP_OVERSIZE = 2
-        
+        else:
+            self.SUBAP_OVERSIZE = self.config.subapFieldStop/self.config.subapFOV
+
         self.nx_detector_pixels = self.nx_subaps * (self.nx_subap_pixels + self.nx_guard_pixels) + self.nx_guard_pixels
 
         self.nx_subap_interp *= self.SUBAP_OVERSIZE
-        self.nx_subap_pixels_oversize = self.SUBAP_OVERSIZE * self.nx_subap_pixels
+        self.nx_subap_interp = int(round(self.nx_subap_interp))
+        self.nx_subap_pixels_oversize = int(round(self.SUBAP_OVERSIZE * self.nx_subap_pixels))
 
         # The total size of the required EField for all subaps.
         # Extra scaling to account for simSize padding

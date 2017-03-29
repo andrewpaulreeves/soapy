@@ -63,7 +63,7 @@ class PSF(object):
 
         # Init line of sight - Get the phase at the right size for the FOV
         self.los = lineofsight_fast.LineOfSight(
-                self.config, self.soapyConfig,
+                self.config, self.soapy_config,
                 propagation_direction="down")
 
         self.scaledMask = numpy.round(interp.zoom(self.mask, self.FOVPxlNo)

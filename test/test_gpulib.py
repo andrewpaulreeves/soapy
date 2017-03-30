@@ -26,11 +26,30 @@ def test_apply_correction():
     interp_correction = numpy.zeros_like(phase)
     for i in range(len(correction)):
         interp_correction[:] = 0
-        interp_correction = numbalib.los.bilinear_interp(
+        interp_correction = numbalib.bilinear_interp(
                 correction[i], coords[i, 0], coords[i, 1], interp_correction, thread_pool=thread_pool)
         phase_cpu -= interp_correction
 
     assert numpy.allclose(phase_cpu, gpu_phase)
 
+def test_add_row():
+
+    data = numpy.arange(100).reshape(10,10).astype("float32")
+    new_data = numpy.arange(-10, 0).astype("float32")
+
+    # Data with a blanck space at the beginning
+    gpu_data = cuda.to_device(numpy.append(data, numpy.zeros((1, 10)),  axis=0))
+
+    # CPU append
+    append_data_cpu = numpy.append(new_data.reshape(1, 10), data, axis=0)
+
+    # GPU append
+    gpulib.atmos.add_row(gpu_data, cuda.to_device(new_data))
+
+    assert numpy.array_equal(append_data_cpu, gpu_data.copy_to_host())
+
+
+
 if __name__ == "__main__":
     test_apply_correction()
+    test_add_row()

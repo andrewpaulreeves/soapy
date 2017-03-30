@@ -1,2 +1,2 @@
 from .gpulib import *
-from . import wfs, los
+from . import wfs, los, atmos

@@ -2,6 +2,9 @@ from numba import cuda
 import numba
 import numpy
 import math
+
+import accelerate.cuda.blas
+
 # Cuda threads per block
 CUDA_TPB = 32
 
@@ -177,7 +180,7 @@ def absSquared3d_kernel(inputData, outputData):
     outputData[i, j, k] = inputData[i, j, k].real**2 + inputData[i, j, k].imag**2
 
 
-def array_sum(array1, array2, threadsPerBlock=None):
+def array_sum(array1, array2, output_data=None,  threadsPerBlock=None):
 
     if threadsPerBlock is None:
         threadsPerBlock = CUDA_TPB
@@ -186,17 +189,23 @@ def array_sum(array1, array2, threadsPerBlock=None):
     # blocks per grid
     bpg = int(numpy.ceil(float(array1.shape[0])/threadsPerBlock)),
 
-
-    array_sum_kernel[tpb, bpg](array1, array2)
-
-    return array1
+    if output_data is None: # Assume in place
+        array_sum_inplace_kernel[tpb, bpg](array1, array2)
+        return array1
+    else:
+        array_sum_kernel[tpb, bpg](array1, array2, output_data)
+        return output_data
 
 @cuda.jit
-def array_sum_kernel(array1, array2):
+def array_sum_inplace_kernel(array1, array2):
     i = cuda.grid(1)
 
     array1[i] += array2[i]
 
+@cuda.jit
+def array_sum_kernel(array1, array2, output_array):
+    i = cuda.grid(1)
+    output_array[i] = array1[i] + array2[i]
 
 def array_sum2d(array1, array2, threadsPerBlock=None):
 
@@ -221,3 +230,79 @@ def array_sum2d_kernel(array1, array2):
     if i < array1.shape[0]:
         if j < array1.shape[1]:
             array1[i, j] += array2[i, j]
+
+def mvm(matrix, vector, output_vector, blas=None):
+    """
+    Wrapper aoudn the cublas gemv call for matrix-vector multiplication
+    
+    Parameters:
+        matrix (devicearray): 2-d cuda array in FORTRAN ordering 
+        vector (devicearray): 1-d cuda array 
+        output_vector (devicearray): array to place calculation  
+        blas (accelerate.cuda.blas.Blas, optional): Blas calculation object. If not given will create one.
+
+    Returns:
+        devicearray: the calculated device array, output_vector
+
+    """
+    if blas is None:
+        blas = accelerate.cuda.blas.Blas()
+
+    m = matrix.shape[0]
+    n = matrix.shape[1]
+    alpha = 1 # Factor to multiply the MVM with
+    beta = 0  # Factor to multiply existing and sum with existing contents of output_vector
+
+    blas.gemv("N", m, n, alpha, matrix, vector, beta, output_vector)
+
+    return output_vector
+
+
+
+def rotate(data, output_data, rotation_angle,threadsPerBlock=None):
+    if threadsPerBlock is None:
+        threadsPerBlock = CUDA_TPB
+
+    tpb = (threadsPerBlock,) * 2
+    # blocks per grid
+    bpg = (
+        int(numpy.ceil(float(output_data.shape[0]) / threadsPerBlock)),
+        int(numpy.ceil(float(output_data.shape[1]) / threadsPerBlock))
+    )
+
+    rotate[tpb, bpg](data, output_data, rotation_angle)
+
+    return output_data
+
+
+@cuda.jit
+def rotate(data, interpArray, rotation_angle):
+    i, j = cuda.grid(2)
+
+    if i < interpArray.shape[0] and j < interpArray.shape[1]:
+
+        i1 = i - (interpArray.shape[0] / 2. - 0.5)
+        j1 = j - (interpArray.shape[1] / 2. - 0.5)
+        x = i1 * numpy.cos(rotation_angle) - j1 * numpy.sin(rotation_angle)
+        y = i1 * numpy.sin(rotation_angle) + j1 * numpy.cos(rotation_angle)
+
+        x += data.shape[0] / 2. - 0.5
+        y += data.shape[1] / 2. - 0.5
+
+        if x >= data.shape[0] - 1:
+            x = data.shape[0] - 1.1
+        x1 = numba.int32(x)
+
+        if y >= data.shape[1] - 1:
+            y = data.shape[1] - 1.1
+        y1 = numba.int32(y)
+
+        xGrad1 = data[x1 + 1, y1] - data[x1, y1]
+        a1 = data[x1, y1] + xGrad1 * (x - x1)
+
+        xGrad2 = data[x1 + 1, y1 + 1] - data[x1, y1 + 1]
+        a2 = data[x1, y1 + 1] + xGrad2 * (x - x1)
+
+        yGrad = a2 - a1
+        interpArray[i, j] = a1 + yGrad * (y - y1)
+        return interpArray

@@ -493,6 +493,9 @@ class InfinitePhaseScreen(infinitephasescreen.PhaseScreenVonKarman):
             # Have to make screne bigger to cope with rotaation
             self.nx_output_size = nx_size
             nx_size = int(numpy.ceil(2 * 2**0.5 * nx_size))
+            # Make even for some algorithms
+            if nx_size%2 != 0:
+                nx_size += 1
         else:
             self.nx_output_size = nx_size
 

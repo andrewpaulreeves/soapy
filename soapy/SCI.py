@@ -62,7 +62,7 @@ class PSF(object):
             self.padFOVPxlNo += 1
 
         # Init line of sight - Get the phase at the right size for the FOV
-        self.los = lineofsight_fast.LineOfSight(
+        self.los = lineofsight_fast.LineOfSightGPU(
                 self.config, self.soapy_config,
                 propagation_direction="down")
 

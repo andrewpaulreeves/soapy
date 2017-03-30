@@ -546,8 +546,8 @@ class LineOfSightGPU(LineOfSight):
         self.cuda_context.push()
 
         if scrns is not None:
-            self.scrns = scrns
-            self.scrns_gpu = cuda.to_device(self.scrns)
+            self.scrns_gpu = scrns
+            # self.scrns_gpu = cuda.to_device(self.scrns)
             self.makePhase(self.radii)
 
         self.residual = self.phase

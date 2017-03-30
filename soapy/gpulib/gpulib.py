@@ -283,8 +283,8 @@ def rotate(data, interpArray, rotation_angle):
 
         i1 = i - (interpArray.shape[0] / 2. - 0.5)
         j1 = j - (interpArray.shape[1] / 2. - 0.5)
-        x = i1 * numpy.cos(rotation_angle) - j1 * numpy.sin(rotation_angle)
-        y = i1 * numpy.sin(rotation_angle) + j1 * numpy.cos(rotation_angle)
+        x = i1 * math.cos(rotation_angle) - j1 * math.sin(rotation_angle)
+        y = i1 * math.sin(rotation_angle) + j1 * math.cos(rotation_angle)
 
         x += data.shape[0] / 2. - 0.5
         y += data.shape[1] / 2. - 0.5
@@ -305,4 +305,3 @@ def rotate(data, interpArray, rotation_angle):
 
         yGrad = a2 - a1
         interpArray[i, j] = a1 + yGrad * (y - y1)
-        return interpArray

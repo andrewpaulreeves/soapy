@@ -1,9 +1,10 @@
+import math
+
 import numpy
 import numba
 from numba import cuda
 
 from . import gpulib
-
 def interp_phase(screen, output_screen, interp_coords, float_position, threads_per_block=None):
     if threads_per_block is None:
         threads_per_block = gpulib.CUDA_TPB
@@ -120,3 +121,23 @@ def get_subscreen_kernel(screen, sub_screen, offset):
 
         sub_screen[i, j] = screen[i + offset[0], j + offset[1]]
 
+def gather_screens(screens_buffer, screens, wavelength_multiplier, threads_per_block=None):
+    if threads_per_block is None:
+        threads_per_block = gpulib.CUDA_TPB
+
+    tpb = (threads_per_block, threads_per_block)
+    bpg = (int(numpy.ceil(float(screens_buffer.shape[1]) / threads_per_block)),
+           int(numpy.ceil(float(screens_buffer.shape[2]) / threads_per_block)))
+
+    for screen_no, screen in enumerate(screens):
+        gather_screens_kernel[tpb, bpg](screens_buffer, screen, wavelength_multiplier, screen_no)
+
+    return screens_buffer
+
+@cuda.jit
+def gather_screens_kernel(screens_buffer, screen, wavelength_multiplier, n_screen):
+
+    i, j = cuda.grid(2)
+
+    if i < screen.shape[0] and j < screen.shape[1]:
+        screens_buffer[n_screen, i, j] = screen[i, j] * wavelength_multiplier

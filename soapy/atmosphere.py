@@ -98,7 +98,7 @@ class Atmosphere(object):
 
         self.simConfig = soapyConfig.sim
         self.config =  soapyConfig.atmos
-
+        self.soapy_config = soapyConfig
         self.scrn_size = self.simConfig.scrnSize
         self.windDirs = self.config.windDirs
         self.windSpeeds = self.config.windSpeeds
@@ -159,10 +159,19 @@ class Atmosphere(object):
             self.infinite_phase_screens = []
             for layer in range(self.config.scrnNo):
                 logger.info("Initialise Infinite Phase Screen {}".format(layer+1))
-                phase_screen = InfinitePhaseScreenGPU(
+                if self.soapy_config.sim.cuda == True:
+                    phase_screen = InfinitePhaseScreenGPU(
                         self.scrn_size, self.pixel_scale, self.scrnStrengths[layer],
                         self.L0s[layer], self.windSpeeds[layer], self.looptime, self.windDirs[layer])
+                else:
+                    phase_screen = InfinitePhaseScreen(
+                            self.scrn_size, self.pixel_scale, self.scrnStrengths[layer],
+                            self.L0s[layer], self.windSpeeds[layer], self.looptime, self.windDirs[layer])
+
                 self.infinite_phase_screens.append(phase_screen)
+
+            if self.soapy_config.sim.cuda == True:
+                self.scrns_gpu = cuda.to_device(self.scrns)
 
         else:
             if not self.config.scrnNames:
@@ -296,6 +305,16 @@ class Atmosphere(object):
             return self.randomScrns(subHarmonics=self.config.subHarmonics)
 
         if self.config.infinite:
+            if self.soapy_config.sim.cuda:
+                # If using cuda GPU, first get the pointer to each new screen
+                self.scrn_list = []
+                for layer in range(self.scrnNo):
+                    self.scrn_list.append(self.infinite_phase_screens[layer].move_screen())
+
+                gpulib.atmos.gather_screens(self.scrns_gpu,  self.scrn_list, (500/(2*numpy.pi)))
+
+                return self.scrns_gpu
+
             for layer in range(self.scrnNo):
                 self.scrns[layer] = self.infinite_phase_screens[layer].move_screen()
                 # Convert to nm
@@ -631,7 +650,7 @@ class InfinitePhaseScreenGPU(InfinitePhaseScreen):
         gpulib.atmos.add_row(self._scrn_gpu, new_row)
         gpulib.atmos.get_subscreen(self._scrn_gpu, self.output_rotation_screen_gpu)
 
-        return self.output_rotation_screen_gpu.copy_to_host()
+        return self.output_rotation_screen_gpu
 
     def move_screen(self):
 
@@ -654,7 +673,7 @@ class InfinitePhaseScreenGPU(InfinitePhaseScreen):
 
         self.rotate_screen()
 
-        return self.output_rotation_screen_gpu.copy_to_host()
+        return self.output_rotation_screen_gpu
 
 
     def rotate_screen(self):

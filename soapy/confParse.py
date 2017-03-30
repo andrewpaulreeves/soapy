@@ -484,7 +484,7 @@ class SimConfig(ConfigObj):
                             of ``loopTime``                     ``0``
         ``threads``         int: Number of threads to use
                             for multithreaded operations        ``1``
-
+        ``cuda``            bool: Use cuda GPU acceleration     ``False``
         ==================  =================================   ===============
 
     Data Saving (all default to False):
@@ -540,6 +540,7 @@ class SimConfig(ConfigObj):
                             ("simOversize", 1.02),
                             ("loopDelay", 0),
                             ("threads", 1),
+                            ("cuda", False),
                         ]
 
     # Parameters which may be set at some point and are allowed

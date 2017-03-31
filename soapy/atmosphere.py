@@ -162,7 +162,8 @@ class Atmosphere(object):
                 if self.soapy_config.sim.cuda == True:
                     phase_screen = InfinitePhaseScreenGPU(
                         self.scrn_size, self.pixel_scale, self.scrnStrengths[layer],
-                        self.L0s[layer], self.windSpeeds[layer], self.looptime, self.windDirs[layer])
+                        self.L0s[layer], self.windSpeeds[layer], self.looptime, self.windDirs[layer],
+                        stream=cuda.stream())
                 else:
                     phase_screen = InfinitePhaseScreen(
                             self.scrn_size, self.pixel_scale, self.scrnStrengths[layer],
@@ -311,6 +312,8 @@ class Atmosphere(object):
                 for layer in range(self.scrnNo):
                     self.scrn_list.append(self.infinite_phase_screens[layer].move_screen())
 
+                for layer in range(self.scrnNo):
+                    self.infinite_phase_screens[layer].stream.synchronize()
                 gpulib.atmos.gather_screens(self.scrns_gpu,  self.scrn_list, (500/(2*numpy.pi)))
 
                 return self.scrns_gpu
@@ -534,7 +537,7 @@ class InfinitePhaseScreen(infinitephasescreen.PhaseScreenVonKarman):
 
         for i in range(n_new_rows):
             # print("Get row: {}".format(i))
-            new_row = self.get_new_row_gpu()
+            new_row = self.get_new_row()
             # print("append row: {}".format(i))
             self._scrn = numpy.append(new_row, self._scrn, axis=0)
 
@@ -601,46 +604,50 @@ class InfinitePhaseScreenGPU(InfinitePhaseScreen):
 
     def __init__(
             self, nx_size, pixel_scale, r0, L0, wind_speed,
-            time_step, wind_direction, random_seed=None, n_columns=2):
+            time_step, wind_direction, random_seed=None, n_columns=2, stream=None):
 
         super(InfinitePhaseScreenGPU, self).__init__(
                 nx_size, pixel_scale, r0, L0, wind_speed,
                 time_step, wind_direction, random_seed=None, n_columns=2)
 
+        self.stream = stream
+
         # Init the random number generator
-        self.rand_gpu = accelerate.cuda.rand.PRNG()
-        self.blas_gpu = accelerate.cuda.blas.Blas()
+        self.rand_gpu = accelerate.cuda.rand.PRNG(stream=self.stream)
+        self.blas_gpu = accelerate.cuda.blas.Blas(stream=self.stream)
 
-        self.random_nums_gpu = cuda.device_array(self.nx_size, dtype=GPU_DTYPE)
-        self.stencil_coords_gpu = cuda.to_device(self.stencil_coords.astype("int32"))
-        self.stencil_data_gpu = cuda.device_array(len(self.stencil_coords), dtype=GPU_DTYPE)
-        self.new_row_gpu = cuda.device_array(self.nx_size, dtype=GPU_DTYPE)
+        self.random_nums_gpu = cuda.device_array(self.nx_size, dtype=GPU_DTYPE, stream=self.stream)
+        self.stencil_coords_gpu = cuda.to_device(self.stencil_coords.astype("int32"), stream=self.stream)
+        self.stencil_data_gpu = cuda.device_array(len(self.stencil_coords), dtype=GPU_DTYPE, stream=self.stream)
+        self.new_row_gpu = cuda.device_array(self.nx_size, dtype=GPU_DTYPE, stream=self.stream)
 
-        self.new_rowA_gpu = cuda.device_array(self.nx_size, dtype=GPU_DTYPE)
-        self.new_rowB_gpu = cuda.device_array(self.nx_size, dtype=GPU_DTYPE)
+        self.new_rowA_gpu = cuda.device_array(self.nx_size, dtype=GPU_DTYPE, stream=self.stream)
+        self.new_rowB_gpu = cuda.device_array(self.nx_size, dtype=GPU_DTYPE, stream=self.stream)
 
-        self.A_mat_gpu = cuda.to_device(numpy.array(self.A_mat, dtype=GPU_DTYPE, order="F"))
-        self.B_mat_gpu = cuda.to_device(numpy.array(self.B_mat, dtype=GPU_DTYPE, order="F"))
+        self.A_mat_gpu = cuda.to_device(numpy.array(self.A_mat, dtype=GPU_DTYPE, order="F"), stream=self.stream)
+        self.B_mat_gpu = cuda.to_device(numpy.array(self.B_mat, dtype=GPU_DTYPE, order="F"), stream=self.stream)
 
         # array to use to append new phase
         self._scrn_gpu = cuda.to_device(
                 numpy.append(self._scrn, numpy.zeros((self.int_move_pixels+1, self.nx_size)), axis=0
-                ).astype("float32"))
+                ).astype("float32"), stream=self.stream)
 
-        self.interp_screen_gpu = cuda.to_device(numpy.zeros((self.nx_size, self.nx_size)))
-        self.interp_coords_gpu = cuda.to_device(self.interp_coords.astype("float32"))
+        self.interp_screen_gpu = cuda.to_device(numpy.zeros((self.nx_size, self.nx_size)), stream=self.stream)
+        self.interp_coords_gpu = cuda.to_device(self.interp_coords.astype("float32"), stream=self.stream)
 
-        self.output_rotation_screen_gpu = cuda.to_device(numpy.zeros((self.nx_output_size, self.nx_output_size)))
+        self.output_rotation_screen_gpu = cuda.to_device(
+                numpy.zeros((self.nx_output_size, self.nx_output_size)), stream=self.stream)
 
     def get_new_row(self):
 
         self.rand_gpu.normal(self.random_nums_gpu, mean=0, sigma=1)
-        gpulib.atmos.get_phase_points(self._scrn_gpu, self.stencil_data_gpu, self.stencil_coords_gpu)
+        gpulib.atmos.get_phase_points(
+                self._scrn_gpu, self.stencil_data_gpu, self.stencil_coords_gpu,stream=self.stream)
 
         gpulib.mvm(self.A_mat_gpu, self.stencil_data_gpu, self.new_rowA_gpu)
         gpulib.mvm(self.B_mat_gpu, self.random_nums_gpu, self.new_rowB_gpu)
 
-        gpulib.array_sum(self.new_rowA_gpu, self.new_rowB_gpu, output_data=self.new_row_gpu)
+        gpulib.array_sum(self.new_rowA_gpu, self.new_rowB_gpu, output_data=self.new_row_gpu,stream=self.stream)
 
         return self.new_row_gpu
 
@@ -650,8 +657,8 @@ class InfinitePhaseScreenGPU(InfinitePhaseScreen):
         """
         new_row = self.get_new_row()
 
-        gpulib.atmos.add_row(self._scrn_gpu, new_row)
-        gpulib.atmos.get_subscreen(self._scrn_gpu, self.output_rotation_screen_gpu)
+        gpulib.atmos.add_row(self._scrn_gpu, new_row, stream=self.stream)
+        gpulib.atmos.get_subscreen(self._scrn_gpu, self.output_rotation_screen_gpu, stream=self.stream)
 
         return self.output_rotation_screen_gpu
 
@@ -669,10 +676,9 @@ class InfinitePhaseScreenGPU(InfinitePhaseScreen):
             # print("Get row: {}".format(i))
             self.add_row()
 
-        numbalib.bilinear_interp(
-                self._scrn, self.interp_coords - self.float_position, self.interp_coords, self.output_screen,
-                self.thread_pool)
-        gpulib.atmos.interp_phase(self._scrn_gpu, self.interp_screen_gpu, self.interp_coords_gpu, self.float_position)
+        gpulib.atmos.interp_phase(
+                self._scrn_gpu, self.interp_screen_gpu, self.interp_coords_gpu,
+                self.float_position, stream=self.stream)
 
         self.rotate_screen()
 
@@ -682,13 +688,15 @@ class InfinitePhaseScreenGPU(InfinitePhaseScreen):
     def rotate_screen(self):
 
         if self.wind_direction == 0:
-            gpulib.atmos.get_subscreen(self.interp_screen_gpu, self.output_rotation_screen_gpu)
+            gpulib.atmos.get_subscreen(
+                    self.interp_screen_gpu, self.output_rotation_screen_gpu,
+                    stream=self.stream)
             return self.output_rotation_screen
 
         else:
             gpulib.rotate(
                     self.interp_screen_gpu, self.output_rotation_screen_gpu,
-                    self.wind_direction*numpy.pi/180)
+                    self.wind_direction*numpy.pi/180, stream=self.stream)
             return self.output_rotation_screen_gpu
 
 

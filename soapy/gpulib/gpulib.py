@@ -180,7 +180,7 @@ def absSquared3d_kernel(inputData, outputData):
     outputData[i, j, k] = inputData[i, j, k].real**2 + inputData[i, j, k].imag**2
 
 
-def array_sum(array1, array2, output_data=None,  threadsPerBlock=None):
+def array_sum(array1, array2, output_data=None,  threadsPerBlock=None, stream=None):
 
     if threadsPerBlock is None:
         threadsPerBlock = CUDA_TPB
@@ -190,10 +190,10 @@ def array_sum(array1, array2, output_data=None,  threadsPerBlock=None):
     bpg = int(numpy.ceil(float(array1.shape[0])/threadsPerBlock)),
 
     if output_data is None: # Assume in place
-        array_sum_inplace_kernel[tpb, bpg](array1, array2)
+        array_sum_inplace_kernel[tpb, bpg, stream](array1, array2)
         return array1
     else:
-        array_sum_kernel[tpb, bpg](array1, array2, output_data)
+        array_sum_kernel[tpb, bpg, stream](array1, array2, output_data)
         return output_data
 
 @cuda.jit
@@ -259,7 +259,7 @@ def mvm(matrix, vector, output_vector, blas=None):
 
 
 
-def rotate(data, output_data, rotation_angle,threadsPerBlock=None):
+def rotate(data, output_data, rotation_angle,threadsPerBlock=None, stream=None):
     if threadsPerBlock is None:
         threadsPerBlock = CUDA_TPB
 
@@ -270,13 +270,14 @@ def rotate(data, output_data, rotation_angle,threadsPerBlock=None):
         int(numpy.ceil(float(output_data.shape[1]) / threadsPerBlock))
     )
 
-    rotate[tpb, bpg](data, output_data, rotation_angle)
+    rotate_kernel[tpb, bpg, stream](data, output_data, rotation_angle)
 
     return output_data
 
 
+
 @cuda.jit
-def rotate(data, interpArray, rotation_angle):
+def rotate_kernel(data, interpArray, rotation_angle):
     i, j = cuda.grid(2)
 
     if i < interpArray.shape[0] and j < interpArray.shape[1]:

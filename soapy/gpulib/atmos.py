@@ -5,7 +5,7 @@ import numba
 from numba import cuda
 
 from . import gpulib
-def interp_phase(screen, output_screen, interp_coords, float_position, threads_per_block=None):
+def interp_phase(screen, output_screen, interp_coords, float_position, threads_per_block=None, stream=None):
     if threads_per_block is None:
         threads_per_block = gpulib.CUDA_TPB
 
@@ -13,7 +13,7 @@ def interp_phase(screen, output_screen, interp_coords, float_position, threads_p
     bpg = (int(numpy.ceil(float(output_screen.shape[0]) / threads_per_block)),
            int(numpy.ceil(float(output_screen.shape[1]) / threads_per_block)))
 
-    interp_phase_kernel[tpb, bpg](screen, output_screen, interp_coords, float_position)
+    interp_phase_kernel[tpb, bpg, stream](screen, output_screen, interp_coords, float_position)
 
     return output_screen
 
@@ -40,7 +40,7 @@ def interp_phase_kernel(screen, output_screen, interp_coords, float_position):
         output_screen[i, j] = a1 + y_grad*(y - y_int)
 
 
-def get_phase_points(data, output_data, coordinates, threads_per_block=None):
+def get_phase_points(data, output_data, coordinates, threads_per_block=None, stream=None):
 
     if threads_per_block is None:
         threads_per_block = gpulib.CUDA_TPB
@@ -49,7 +49,7 @@ def get_phase_points(data, output_data, coordinates, threads_per_block=None):
     # blocks per grid
     bpg = int(numpy.ceil(float(coordinates.shape[0]) / threads_per_block))
 
-    get_phase_points_kernel[tpb, bpg](data, output_data, coordinates)
+    get_phase_points_kernel[tpb, bpg, stream](data, output_data, coordinates)
 
     return data
 
@@ -64,7 +64,7 @@ def get_phase_points_kernel(data, output_data, coordinates):
         output_data[i] = data[x, y]
 
 
-def add_row(screen, new_row, threads_per_block=None):
+def add_row(screen, new_row, threads_per_block=None, stream=None):
     if threads_per_block is None:
         threads_per_block = gpulib.CUDA_TPB
 
@@ -73,7 +73,7 @@ def add_row(screen, new_row, threads_per_block=None):
            int(numpy.ceil(float(screen.shape[1]) / threads_per_block)))
 
 
-    add_row_kernel[tpb, bpg](screen, new_row)
+    add_row_kernel[tpb, bpg, stream](screen, new_row)
 
     return screen
 
@@ -97,7 +97,7 @@ def add_row_kernel(screen, new_row):
         # Can now safely assign the new value to the screen array
         screen[i, j] = new_screen_val
 
-def get_subscreen(screen, sub_screen, offset=None, threads_per_block=None):
+def get_subscreen(screen, sub_screen, offset=None, threads_per_block=None, stream=None):
 
     if threads_per_block is None:
         threads_per_block = gpulib.CUDA_TPB
@@ -109,7 +109,7 @@ def get_subscreen(screen, sub_screen, offset=None, threads_per_block=None):
     bpg = (int(numpy.ceil(float(sub_screen.shape[0]) / threads_per_block)),
            int(numpy.ceil(float(sub_screen.shape[1]) / threads_per_block)))
 
-    get_subscreen_kernel[tpb, bpg](screen, sub_screen, offset)
+    get_subscreen_kernel[tpb, bpg, stream](screen, sub_screen, offset)
 
     return sub_screen
 
@@ -121,7 +121,7 @@ def get_subscreen_kernel(screen, sub_screen, offset):
 
         sub_screen[i, j] = screen[i + offset[0], j + offset[1]]
 
-def gather_screens(screens_buffer, screens, wavelength_multiplier, threads_per_block=None):
+def gather_screens(screens_buffer, screens, wavelength_multiplier, threads_per_block=None, stream=None):
     if threads_per_block is None:
         threads_per_block = gpulib.CUDA_TPB
 
@@ -130,7 +130,7 @@ def gather_screens(screens_buffer, screens, wavelength_multiplier, threads_per_b
            int(numpy.ceil(float(screens_buffer.shape[2]) / threads_per_block)))
 
     for screen_no, screen in enumerate(screens):
-        gather_screens_kernel[tpb, bpg](screens_buffer, screen, wavelength_multiplier, screen_no)
+        gather_screens_kernel[tpb, bpg, stream](screens_buffer, screen, wavelength_multiplier, screen_no)
 
     return screens_buffer
 

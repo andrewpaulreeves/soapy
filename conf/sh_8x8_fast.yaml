@@ -6,7 +6,7 @@ nSci: 1
 nIters: 5000
 loopTime: 0.0025
 threads: 4
-
+wfsMP: True
 verbosity: 2
 
 saveCMat: False

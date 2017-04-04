@@ -187,12 +187,16 @@ class Sim(object):
         self.config.sim.totalWfsData = 0
         self.wfsFrameNo = numpy.zeros(self.config.sim.nGS)
         for nwfs in xrange(self.config.sim.nGS):
-            try:
-                wfsClass = getattr(wfs, self.config.wfss[nwfs].type)
-            except AttributeError:
-                raise confParse.ConfigurationError(
-                        "No WFS of type {} found.".format(
-                                self.config.wfss[nwfs].type))
+
+            if self.config.sim.wfsMP:
+                wfsClass = wfs.WFS_MP
+            else:
+                try:
+                    wfsClass = getattr(wfs, self.config.wfss[nwfs].type)
+                except AttributeError:
+                    raise confParse.ConfigurationError(
+                            "No WFS of type {} found.".format(
+                                    self.config.wfss[nwfs].type))
 
             self.wfss[nwfs] = wfsClass(
                     self.config, n_wfs=nwfs, mask=self.mask)
@@ -392,6 +396,7 @@ class Sim(object):
         t_wfs = time.time()
         if scrns != None:
             self.scrns=scrns
+
         if wfsList==None:
             wfsList=range(self.config.sim.nGS)
 
@@ -400,47 +405,29 @@ class Sim(object):
             slopesSize+=self.wfss[nwfs].n_measurements
         slopes = numpy.zeros( (slopesSize) )
 
-        wfsProcs = []
-        wfsQueues = []
         s = 0
-        for proc in xrange(len(wfsList)):
-            nwfs = wfsList[proc]
-            # check if due to read out WFS
+        for nwfs in wfsList:
+            #check if due to read out WFS
             if loopIter:
                 read=False
                 if (int(float(self.config.sim.loopTime*loopIter)
                         /self.config.wfss[nwfs].exposureTime)
                                         != self.wfsFrameNo[nwfs]):
                     self.wfsFrameNo[nwfs]+=1
-                    read = True
+                    read=True
             else:
                 read = True
+            # Start running the frame
+            self.wfss[nwfs].start_frame(self.scrns, dmShape, read=read)
 
-            wfsQueues.append(Queue())
-            wfsProcs.append(Process(target=multiWfs,
-                    args=[  self.scrns, self.wfss[nwfs], dmShape, read,
-                            wfsQueues[proc]])
-                    )
-            wfsProcs[proc].daemon = True
-            wfsProcs[proc].start()
+        for nwfs in wfsList:
 
-        for proc in xrange(len(wfsList)):
-            nwfs = wfsList[proc]
-
-            (slopes[s:s+self.wfss[nwfs].n_measurements],
-                    self.wfss[nwfs].wfsDetectorPlane,
-                    self.wfss[nwfs].uncorrectedPhase,
-                    lgsPsf) = wfsQueues[proc].get()
-
-            if numpy.any(lgsPsf)!=None:
-                self.wfss[nwfs].LGS.psf1 = lgsPsf
-
-            wfsProcs[proc].join()
+            slopes[s:s+self.wfss[nwfs].n_measurements] = \
+                    self.wfss[nwfs].get_frame()
             s += self.wfss[nwfs].n_measurements
 
-        self.Twfs+=time.time()-t_wfs
+        self.Twfs += time.time()-t_wfs
         return slopes
-
     def runDM(self, dmCommands, closed=True):
         """
         Runs a single frame of the deformable mirrors

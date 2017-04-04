@@ -6,6 +6,7 @@ nSci: 3
 nIters: 5000
 loopTime: 0.0025
 reconstructor: "MVM"
+wfsMP: True
 
 verbosity: 2
 

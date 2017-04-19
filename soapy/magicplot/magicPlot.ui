@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MagicPlot</class>
+ <widget class="QWidget" name="MagicPlot">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>658</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0">
+    <widget class="QSplitter" name="analysisSplitter">
+     <property name="lineWidth">
+      <number>0</number>
+     </property>
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="opaqueResize">
+      <bool>false</bool>
+     </property>
+     <property name="handleWidth">
+      <number>7</number>
+     </property>
+     <widget class="QSplitter" name="shapeSplitter">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+      <widget class="QSplitter" name="histSplitter">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <widget class="QWidget" name="verticalLayoutWidget">
+        <layout class="QVBoxLayout" name="histLayout"/>
+       </widget>
+       <widget class="QWidget" name="verticalLayoutWidget_2">
+        <layout class="QVBoxLayout" name="plotContainerLayout">
+         <item>
+          <layout class="QHBoxLayout" name="plotLayout"/>
+         </item>
+         <item>
+          <widget class="QLabel" name="mousePosLabel">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </widget>
+      <widget class="QWidget" name="verticalLayoutWidget_3">
+       <layout class="QVBoxLayout" name="shapeLayout"/>
+      </widget>
+     </widget>
+     <widget class="QWidget" name="verticalLayoutWidget_4">
+      <layout class="QVBoxLayout" name="analysisLayout"/>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+  <zorder>analysisSplitter</zorder>
+  <zorder>verticalLayoutWidget</zorder>
+  <zorder>verticalLayoutWidget_3</zorder>
+  <zorder>verticalLayoutWidget_4</zorder>
+  <zorder>analysisSplitter</zorder>
+  <zorder>verticalLayoutWidget</zorder>
+  <zorder>mousePosLabel</zorder>
+  <zorder>analysisSplitter</zorder>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

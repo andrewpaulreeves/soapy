@@ -72,6 +72,7 @@ pyqtgraph.graphicsItems.GradientEditorItem.Gradients = pyqtgraph.pgcollections.O
                         (1.0, (251, 252, 191))], 'mode':'rgb'})
         ])
 
+from . import magicplot
 
 if PYQT_VERSION == 5:
     from .aogui_ui5 import Ui_MainWindow
@@ -106,7 +107,8 @@ except ImportError:
     GL = False
 
 
-GUIFILE_PATH = os.path.abspath(os.path.realpath(__file__), "/../")
+GUIFILE_PATH = os.path.abspath(os.path.realpath(__file__)+ "/../")
+print(GUIFILE_PATH)
 #This is the colormap to be used in all pyqtgraph plots
 #It can be changed in the GUI using the gradient slider in the top left
 #to get the LUT dictionary, use ``gui.gradient.saveState()''
@@ -387,18 +389,20 @@ class GUI(QtWidgets.QMainWindow):
 
 
     def makeImageItem(self, layout, size):
-        gv = pyqtgraph.GraphicsView()
-        if self.useOpenGL and GL:
-            gv.useOpenGL()
-        layout.addWidget(gv)
-        vb = pyqtgraph.ViewBox()
-        vb.setAspectLocked(True)
-        vb.enableAutoRange(axis=pyqtgraph.ViewBox.XYAxes, enable=True)
-
-        gv.setCentralItem(vb)
-        img = pyqtgraph.ImageItem(border="w")
-        vb.addItem(img)
-        vb.setRange(QtCore.QRectF(0, 0, size, size))
+    #     gv = pyqtgraph.GraphicsView()
+    #     if self.useOpenGL and GL:
+    #         gv.useOpenGL()
+    #     layout.addWidget(gv)
+    #     vb = pyqtgraph.ViewBox()
+    #     vb.setAspectLocked(True)
+    #     vb.enableAutoRange(axis=pyqtgraph.ViewBox.XYAxes, enable=True)
+    #
+    #     gv.setCentralItem(vb)
+    #     img = pyqtgraph.ImageItem(border="w")
+    #     vb.addItem(img)
+    #     vb.setRange(QtCore.QRectF(0, 0, size, size))
+        img = magicplot.MagicPlot()
+        layout.addWidget(img)
         return img
 
     def plotPupilOverlap(self):

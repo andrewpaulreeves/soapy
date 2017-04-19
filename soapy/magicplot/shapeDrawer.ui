@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ShapeDrawer</class>
+ <widget class="QWidget" name="ShapeDrawer">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>137</width>
+    <height>317</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0">
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <item>
+      <widget class="QPushButton" name="drawRectButton">
+       <property name="text">
+        <string>Rectangle</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="drawLineButton">
+       <property name="text">
+        <string>Line</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="drawGridButton">
+       <property name="text">
+        <string>Grid</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="drawCircleButton">
+       <property name="text">
+        <string>Circle</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="drawElipseButton">
+       <property name="text">
+        <string>Ellipse</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

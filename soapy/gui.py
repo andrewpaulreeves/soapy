@@ -23,10 +23,10 @@ The GUI for the Soapy adaptive optics simulation
 import sys
 
 try:
-    from PyQt5 import QtGui, QtWidgets, QtCore
+    from PyQt5 import QtGui, QtWidgets, QtCore, uic
     PYQT_VERSION = 5
 except (ImportError ,RuntimeError):
-    from PyQt4 import QtGui, QtCore
+    from PyQt4 import QtGui, QtCore, uic
     QtWidgets = QtGui
     PYQT_VERSION = 4
 
@@ -106,8 +106,7 @@ except ImportError:
     GL = False
 
 
-guiFile_path = os.path.abspath(os.path.realpath(__file__)+"/..")
-
+GUIFILE_PATH = os.path.abspath(os.path.realpath(__file__), "/../")
 #This is the colormap to be used in all pyqtgraph plots
 #It can be changed in the GUI using the gradient slider in the top left
 #to get the LUT dictionary, use ``gui.gradient.saveState()''
@@ -130,29 +129,30 @@ class GUI(QtWidgets.QMainWindow):
         # get current application instance
         self.app = QtCore.QCoreApplication.instance()
 
-        self.ui = Ui_MainWindow()
-        self.ui.setupUi(self)
+        # self = Ui_MainWindow()
+        # self.setupUi(self)
+        uic.loadUi(os.path.join(GUIFILE_PATH, "AoGui.ui"), self)
 
         self.useOpenGL = useOpenGL
 
-        self.ui.runButton.clicked.connect(self.run)
-        self.ui.initButton.clicked.connect(self.init)
-        self.ui.iMatButton.clicked.connect(self.iMat)
-        self.ui.stopButton.clicked.connect(self.stop)
-        self.ui.frameButton.clicked.connect(self.frame)
-        self.ui.resetButton.clicked.connect(self.reset)
+        self.runButton.clicked.connect(self.run)
+        self.initButton.clicked.connect(self.init)
+        self.iMatButton.clicked.connect(self.iMat)
+        self.stopButton.clicked.connect(self.stop)
+        self.frameButton.clicked.connect(self.frame)
+        self.resetButton.clicked.connect(self.reset)
 
-        self.ui.reloadParamsAction.triggered.connect(self.read)
-        self.ui.loadParamsAction.triggered.connect(self.readParamFile)
+        self.reloadParamsAction.triggered.connect(self.read)
+        self.loadParamsAction.triggered.connect(self.readParamFile)
 
         #Ensure update is called if sci button pressed
-        self.ui.instExpRadio.clicked.connect(self.update)
-        self.ui.longExpRadio.clicked.connect(self.update)
+        self.instExpRadio.clicked.connect(self.update)
+        self.longExpRadio.clicked.connect(self.update)
 
         #Initialise Colour chooser
         self.gradient = pyqtgraph.GradientWidget(orientation="bottom")
         self.gradient.sigGradientChanged.connect(self.changeLUT)
-        self.ui.verticalLayout.addWidget(self.gradient)
+        self.verticalLayout.addWidget(self.gradient)
         self.gradient.restoreState(CMAP)
 
 
@@ -163,7 +163,7 @@ class GUI(QtWidgets.QMainWindow):
         self.sciPlots = {}
         self.resPlots = {}
 
-        self.console = IPythonConsole(self.ui.consoleLayout,self.sim,self)
+        self.console = IPythonConsole(self.consoleLayout,self.sim,self)
 
         self.loopRunning=False
         self.makingIMat=False
@@ -172,7 +172,7 @@ class GUI(QtWidgets.QMainWindow):
         self.updateTimer = QtCore.QTimer()
         self.updateTimer.setInterval(100)
         self.updateTimer.timeout.connect(self.update)
-        self.ui.updateTimeSpin.valueChanged.connect(self.updateTimeChanged)
+        self.updateTimeSpin.valueChanged.connect(self.updateTimeChanged)
         self.updateQueue = queue.Queue(10)
         self.updateLock = QtCore.QMutex()
 
@@ -188,7 +188,7 @@ class GUI(QtWidgets.QMainWindow):
         self.colorNo = 0
 
         self.resultPlot = PlotWidget()
-        self.ui.plotLayout.addWidget(self.resultPlot)
+        self.plotLayout.addWidget(self.resultPlot)
 
         #sim.readParams()
         sim.config.calcParams()
@@ -231,11 +231,11 @@ class GUI(QtWidgets.QMainWindow):
 
     def initPlots(self):
 
-        self.ui.progressBar.setValue(80)
-        for layout in [ self.ui.wfsLayout, self.ui.dmLayout,
-                        self.ui.residualLayout, self.ui.sciLayout,
-                        self.ui.phaseLayout, self.ui.lgsLayout,
-                        self.ui.gainLayout]:
+        self.progressBar.setValue(80)
+        for layout in [ self.wfsLayout, self.dmLayout,
+                        self.residualLayout, self.sciLayout,
+                        self.phaseLayout, self.lgsLayout,
+                        self.gainLayout]:
             for i in reversed(range(layout.count())):
                 layout.itemAt(i).widget().setParent(None)
 
@@ -245,28 +245,28 @@ class GUI(QtWidgets.QMainWindow):
         self.phasePlots = {}
         for wfs in range(self.config.sim.nGS):
             self.wfsPlots[wfs] = self.makeImageItem(
-                    self.ui.wfsLayout,
+                    self.wfsLayout,
                     self.config.wfss[wfs].nxSubaps*self.config.wfss[wfs].pxlsPerSubap
                     )
             self.phasePlots[wfs] = self.makeImageItem(
-                    self.ui.phaseLayout, self.config.sim.simSize)
+                    self.phaseLayout, self.config.sim.simSize)
 
             if ((self.config.wfss[wfs].lgs is not None) and (self.config.wfss[wfs].lgs.uplink == 1)):
                 self.lgsPlots[wfs] = self.makeImageItem(
-                        self.ui.lgsLayout, self.config.sim.pupilSize)
+                        self.lgsLayout, self.config.sim.pupilSize)
 
         self.dmPlots = {}
         for dm in range(self.config.sim.nDM):
-            self.dmPlots[dm] = self.makeImageItem(self.ui.dmLayout,
+            self.dmPlots[dm] = self.makeImageItem(self.dmLayout,
                                                   self.config.sim.simSize)
 
         self.sciPlots = {}
         self.resPlots = {}
         for sci in range(self.config.sim.nSci):
 
-            self.sciPlots[sci] = self.makeImageItem(self.ui.sciLayout,
+            self.sciPlots[sci] = self.makeImageItem(self.sciLayout,
                                                     self.config.scis[sci].pxls)
-            self.resPlots[sci] = self.makeImageItem(self.ui.residualLayout,
+            self.resPlots[sci] = self.makeImageItem(self.residualLayout,
                                                     self.config.sim.simSize)
         self.sim.guiQueue = self.updateQueue
         self.sim.guiLock = self.updateLock
@@ -278,10 +278,10 @@ class GUI(QtWidgets.QMainWindow):
         for dm in range(self.config.sim.nDM):
             gainLabel = QtGui.QLabel()
             gainLabel.setText("DM {}:".format(dm))
-            self.ui.gainLayout.addWidget(gainLabel)
+            self.gainLayout.addWidget(gainLabel)
 
             self.gainSpins.append(QtGui.QDoubleSpinBox())
-            self.ui.gainLayout.addWidget(self.gainSpins[dm])
+            self.gainLayout.addWidget(self.gainSpins[dm])
             self.gainSpins[dm].setValue(self.config.dms[dm].gain)
             self.gainSpins[dm].setSingleStep(0.05)
             self.gainSpins[dm].setMaximum(1.)
@@ -289,7 +289,7 @@ class GUI(QtWidgets.QMainWindow):
             self.gainSpins[dm].valueChanged.connect(
                                                 partial(self.gainChanged,dm))
 
-        self.ui.progressBar.setValue(100)
+        self.progressBar.setValue(100)
         self.statsThread = StatsThread(self.sim)
 
     def update(self):
@@ -340,10 +340,10 @@ class GUI(QtWidgets.QMainWindow):
 
             for sci in range(self.config.sim.nSci):
                 if numpy.any(plotDict["sciImg"][sci])!=None:
-                    if self.ui.instExpRadio.isChecked():
+                    if self.instExpRadio.isChecked():
                         self.sciPlots[sci].setImage(
                                 plotDict["instSciImg"][sci], lut=self.LUT)
-                    elif self.ui.longExpRadio.isChecked():
+                    elif self.longExpRadio.isChecked():
                         self.sciPlots[sci].setImage(
                                 plotDict["sciImg"][sci], lut=self.LUT)
 
@@ -407,7 +407,7 @@ class GUI(QtWidgets.QMainWindow):
             self.resultPlot.setParent(None)
         scrnNo = self.sim.config.atmos.scrnNo
         self.resultPlot = OverlapWidget(scrnNo)
-        self.ui.plotLayout.addWidget(self.resultPlot)
+        self.plotLayout.addWidget(self.resultPlot)
 
         for i in range(scrnNo):
 
@@ -457,7 +457,7 @@ class GUI(QtWidgets.QMainWindow):
         if self.resultPlot:
             self.resultPlot.setParent(None)
         self.resultPlot = PlotWidget()
-        self.ui.plotLayout.addWidget(self.resultPlot)
+        self.plotLayout.addWidget(self.resultPlot)
 
         self.strehlAxes = self.resultPlot.canvas.ax
         self.strehlAxes.set_xlabel("Iterations",fontsize="xx-small")
@@ -480,9 +480,9 @@ class GUI(QtWidgets.QMainWindow):
             instStrehls.append(100*self.sim.sciCams[i].instStrehl)
             longStrehls.append(100*self.sim.sciCams[i].longExpStrehl)
 
-        self.ui.instStrehl.setText( "Instantaneous Strehl: "
+        self.instStrehl.setText( "Instantaneous Strehl: "
            +self.config.sim.nSci*"%.1f%%  "%tuple(instStrehls))
-        self.ui.longStrehl.setText("Long Exposure Strehl: "
+        self.longStrehl.setText("Long Exposure Strehl: "
            +self.config.sim.nSci*"%.1f%%  "% tuple(longStrehls))
 
         for plt in self.strehlPlts:
@@ -500,9 +500,9 @@ class GUI(QtWidgets.QMainWindow):
 
     def updateStats(self, itersPerSec, timeRemaining):
 
-        self.ui.itersPerSecLabel.setText(
+        self.itersPerSecLabel.setText(
                                 "Iterations Per Second: %.2f"%(itersPerSec))
-        self.ui.timeRemaining.setText( "Time Remaining: %.2fs"%(timeRemaining) )
+        self.timeRemaining.setText( "Time Remaining: %.2fs"%(timeRemaining) )
 
 ########################################################
 #Sim Call Backs
@@ -510,8 +510,8 @@ class GUI(QtWidgets.QMainWindow):
         self.sim.readParams()
 
     def init(self):
-        self.ui.progressLabel.setText("Initialising...")
-        self.ui.progressBar.setValue(2)
+        self.progressLabel.setText("Initialising...")
+        self.progressBar.setValue(2)
 
         self.iThread = InitThread(self)
         self.iThread.updateProgressSignal.connect(self.progressUpdate)
@@ -531,8 +531,8 @@ class GUI(QtWidgets.QMainWindow):
 
             # self.plotPupilOverlap()
             print("making IMat")
-            self.ui.progressLabel.setText("Generating DM Shapes...")
-            self.ui.progressBar.setValue(10)
+            self.progressLabel.setText("Generating DM Shapes...")
+            self.progressBar.setValue(10)
             self.updateTimer.start()
             self.iMatThread = IMatThread(self)
             self.iMatThread.updateProgressSignal.connect(self.progressUpdate)
@@ -547,8 +547,8 @@ class GUI(QtWidgets.QMainWindow):
         self.initStrehlPlot()
 
         self.startTime = time.time()
-        self.ui.progressLabel.setText("Running AO Loop")
-        self.ui.progressBar.setValue(0)
+        self.progressLabel.setText("Running AO Loop")
+        self.progressBar.setValue(0)
         self.loopThread = LoopThread(self)
         self.loopThread.updateProgressSignal.connect(self.progressUpdate)
         self.statsThread.updateStatsSignal.connect(self.updateStats)
@@ -594,7 +594,7 @@ class GUI(QtWidgets.QMainWindow):
     def updateTimeChanged(self):
 
         try:
-            self.updateTime = int(numpy.round(1000./float(self.ui.updateTimeSpin.value())))
+            self.updateTime = int(numpy.round(1000./float(self.updateTimeSpin.value())))
             self.updateTimer.setInterval(self.updateTime)
         except ZeroDivisionError:
             pass
@@ -603,14 +603,14 @@ class GUI(QtWidgets.QMainWindow):
 
         if i!="" and maxIter!="":
             percent = int(round(100*(float(i)/float(maxIter))))
-            self.ui.progressBar.setValue(percent)
-            self.ui.progressLabel.setText(
+            self.progressBar.setValue(percent)
+            self.progressLabel.setText(
                     "{0}: Iteration {1} of {2}".format(message, i, maxIter))
 
         else:
             if i!="":
                 message+=" {}".format(i)
-            self.ui.progressLabel.setText(message)
+            self.progressLabel.setText(message)
 
 
 ###############################################
@@ -680,7 +680,7 @@ class IMatThread(QtCore.QThread):
         self.guiObj.makingIMat=True
         logger.setStatusFunc(self.progressUpdate)
         try:
-            self.sim.makeIMat(forceNew=self.guiObj.ui.newCMat.isChecked(),
+            self.sim.makeIMat(forceNew=self.guiObj.newCMat.isChecked(),
                                     progressCallback=self.progressUpdate)
             self.guiObj.makingIMat=False
             self.guiObj.stop()

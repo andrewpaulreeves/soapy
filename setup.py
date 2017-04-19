@@ -24,4 +24,5 @@ setup(
        "scipy >= 0.15.0",
       "astropy >= 1.0",
       ],
+    package_data={'soapy':["*.ui"]},
 )

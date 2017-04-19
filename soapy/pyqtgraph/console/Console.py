@@ -48,7 +48,6 @@ class ConsoleWidget(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent)
         if namespace is None:
             namespace = {}
-        namespace['__console__'] = self
         self.localNamespace = namespace
         self.editor = editor
         self.multiline = None
@@ -135,7 +134,7 @@ class ConsoleWidget(QtGui.QWidget):
         if frame is not None and self.ui.runSelectedFrameCheck.isChecked():
             return self.currentFrame().tb_frame.f_globals
         else:
-            return self.localNamespace
+            return globals()
         
     def locals(self):
         frame = self.currentFrame()

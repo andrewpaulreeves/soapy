@@ -6,38 +6,8 @@ from . import numbalib
 import numpy
 import numba
 
-def zoom(data, zoomArray, thread_pool=None):
-    """
-    A function which deals with threaded numba interpolation.
-
-    Parameters:
-        array (ndarray): The 2-D array to interpolate
-        zoomArray (ndarray, tuple): The array to place the calculation, or the shape to return
-        threads (int): Number of threads to use for calculation
-
-    Returns:
-        interpArray (ndarray): A pointer to the calculated ``interpArray''
-    """
-    nx = zoomArray.shape[0]
-
-    if thread_pool is None:
-        thread_pool = numbalib.ThreadPool(N_CPU)
-
-    n_threads = thread_pool.n_threads
-
-    args = []
-    for nt in range(n_threads):
-        args.append((data,
-                numpy.array([int(nt*nx/n_threads), int((nt+1)*nx/n_threads)]),
-                zoomArray))
-
-    thread_pool.run(zoom_numbaThread, args)
-
-    return zoomArray
-
-
-@numba.jit(nopython=True, nogil=True)
-def zoom_numbaThread(data, chunkIndices, zoomArray):
+@numba.jit(nopython=True, nogil=True, parallel=True)
+def zoom(data, zoomArray):
     """
     2-D zoom interpolation using purely python - fast if compiled with numba.
     Both the array to zoom and the output array are required as arguments, the
@@ -51,7 +21,7 @@ def zoom_numbaThread(data, chunkIndices, zoomArray):
         interpArray (ndarray): A pointer to the calculated ``zoomArray''
     """
 
-    for i in range(chunkIndices[0], chunkIndices[1]):
+    for i in numba.prange(zoomArray.shape[0]):
         x = i * numba.float32(data.shape[0] - 1) / (zoomArray.shape[0] - 0.99999999)
         x1 = numba.int32(x)
         for j in range(zoomArray.shape[1]):
@@ -68,37 +38,72 @@ def zoom_numbaThread(data, chunkIndices, zoomArray):
             zoomArray[i, j] = a1 + yGrad * (y - y1)
 
     return zoomArray
+#
+# def zoom_legacy(data, zoomArray, thread_pool=None):
+#     """
+#     A function which deals with threaded numba interpolation.
+#
+#     Parameters:
+#         array (ndarray): The 2-D array to interpolate
+#         zoomArray (ndarray, tuple): The array to place the calculation, or the shape to return
+#         threads (int): Number of threads to use for calculation
+#
+#     Returns:
+#         interpArray (ndarray): A pointer to the calculated ``interpArray''
+#     """
+#     nx = zoomArray.shape[0]
+#
+#     if thread_pool is None:
+#         thread_pool = numbalib.ThreadPool(N_CPU)
+#
+#     n_threads = thread_pool.n_threads
+#
+#     args = []
+#     for nt in range(n_threads):
+#         args.append((data,
+#                 numpy.array([int(nt*nx/n_threads), int((nt+1)*nx/n_threads)]),
+#                 zoomArray))
+#
+#     thread_pool.run(zoom_numbaThread, args)
+#
+#     return zoomArray
+#
+#
+# @numba.jit(nopython=True, nogil=True)
+# def zoom_numbaThread(data, chunkIndices, zoomArray):
+#     """
+#     2-D zoom interpolation using purely python - fast if compiled with numba.
+#     Both the array to zoom and the output array are required as arguments, the
+#     zoom level is calculated from the size of the new array.
+#
+#     Parameters:
+#         array (ndarray): The 2-D array to zoom
+#         zoomArray (ndarray): The array to place the calculation
+#
+#     Returns:
+#         interpArray (ndarray): A pointer to the calculated ``zoomArray''
+#     """
+#
+#     for i in range(chunkIndices[0], chunkIndices[1]):
+#         x = i * numba.float32(data.shape[0] - 1) / (zoomArray.shape[0] - 0.99999999)
+#         x1 = numba.int32(x)
+#         for j in range(zoomArray.shape[1]):
+#             y = j * numba.float32(data.shape[1] - 1) / (zoomArray.shape[1] - 0.99999999)
+#             y1 = numba.int32(y)
+#
+#             xGrad1 = data[x1 + 1, y1] - data[x1, y1]
+#             a1 = data[x1, y1] + xGrad1 * (x - x1)
+#
+#             xGrad2 = data[x1 + 1, y1 + 1] - data[x1, y1 + 1]
+#             a2 = data[x1, y1 + 1] + xGrad2 * (x - x1)
+#
+#             yGrad = a2 - a1
+#             zoomArray[i, j] = a1 + yGrad * (y - y1)
+#
+#     return zoomArray
 
-
-def zoomtoefield(data, zoomArray, thread_pool=None):
-    """
-    A function which deals with threaded numba interpolation.
-
-    Parameters:
-        array (ndarray): The 2-D array to interpolate
-        zoomArray (ndarray, tuple): The array to place the calculation, or the shape to return
-        threads (int): Number of threads to use for calculation
-
-    Returns:
-        interpArray (ndarray): A pointer to the calculated ``interpArray''
-    """
-    nx = zoomArray.shape[0]
-    if thread_pool is None:
-        thread_pool = numbalib.ThreadPool(N_CPU)
-    n_threads = thread_pool.n_threads
-
-    args = []
-    for nt in range(n_threads):
-        args.append((data,
-                numpy.array([int(nt*nx/n_threads), int((nt+1)*nx/n_threads)]),
-                zoomArray))
-
-    thread_pool.run(zoomtoefield_numbaThread, args)
-
-    return zoomArray
-
-@numba.jit(nopython=True, nogil=True)
-def zoomtoefield_numbaThread(data, chunkIndices, zoomArray):
+@numba.jit(nopython=True, nogil=True, parallel=True)
+def zoomtoefield(data, zoomArray):
     """
     2-D zoom interpolation using purely python - fast if compiled with numba.
     Both the array to zoom and the output array are required as arguments, the
@@ -112,7 +117,7 @@ def zoomtoefield_numbaThread(data, chunkIndices, zoomArray):
         interpArray (ndarray): A pointer to the calculated ``zoomArray''
     """
 
-    for i in range(chunkIndices[0], chunkIndices[1]):
+    for i in numba.prange(zoomArray.shape[0]):
         x = i * numba.float32(data.shape[0] - 1) / (zoomArray.shape[0] - 0.99999999)
         x1 = numba.int32(x)
         for j in range(zoomArray.shape[1]):
@@ -130,6 +135,67 @@ def zoomtoefield_numbaThread(data, chunkIndices, zoomArray):
             zoomArray[i, j] = numpy.exp(1j * phase_value)
 
     return zoomArray
+
+# def zoomtoefield(data, zoomArray, thread_pool=None):
+#     """
+#     A function which deals with threaded numba interpolation.
+#
+#     Parameters:
+#         array (ndarray): The 2-D array to interpolate
+#         zoomArray (ndarray, tuple): The array to place the calculation, or the shape to return
+#         threads (int): Number of threads to use for calculation
+#
+#     Returns:
+#         interpArray (ndarray): A pointer to the calculated ``interpArray''
+#     """
+#     nx = zoomArray.shape[0]
+#     if thread_pool is None:
+#         thread_pool = numbalib.ThreadPool(N_CPU)
+#     n_threads = thread_pool.n_threads
+#
+#     args = []
+#     for nt in range(n_threads):
+#         args.append((data,
+#                 numpy.array([int(nt*nx/n_threads), int((nt+1)*nx/n_threads)]),
+#                 zoomArray))
+#
+#     thread_pool.run(zoomtoefield_numbaThread, args)
+#
+#     return zoomArray
+#
+# @numba.jit(nopython=True, nogil=True)
+# def zoomtoefield_numbaThread(data, chunkIndices, zoomArray):
+#     """
+#     2-D zoom interpolation using purely python - fast if compiled with numba.
+#     Both the array to zoom and the output array are required as arguments, the
+#     zoom level is calculated from the size of the new array.
+#
+#     Parameters:
+#         array (ndarray): The 2-D array to zoom
+#         zoomArray (ndarray): The array to place the calculation
+#
+#     Returns:
+#         interpArray (ndarray): A pointer to the calculated ``zoomArray''
+#     """
+#
+#     for i in range(chunkIndices[0], chunkIndices[1]):
+#         x = i * numba.float32(data.shape[0] - 1) / (zoomArray.shape[0] - 0.99999999)
+#         x1 = numba.int32(x)
+#         for j in range(zoomArray.shape[1]):
+#             y = j * numba.float32(data.shape[1] - 1) / (zoomArray.shape[1] - 0.99999999)
+#             y1 = numba.int32(y)
+#
+#             xGrad1 = data[x1 + 1, y1] - data[x1, y1]
+#             a1 = data[x1, y1] + xGrad1 * (x - x1)
+#
+#             xGrad2 = data[x1 + 1, y1 + 1] - data[x1, y1 + 1]
+#             a2 = data[x1, y1 + 1] + xGrad2 * (x - x1)
+#
+#             yGrad = a2 - a1
+#             phase_value = (a1 + yGrad * (y - y1))
+#             zoomArray[i, j] = numpy.exp(1j * phase_value)
+#
+#     return zoomArray
 
 
 

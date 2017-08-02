@@ -330,7 +330,7 @@ class ShackHartmann(base.WFS):
 
         if self.config.propagationMode=="Geometric":
             # Have to make phase the correct size if geometric prop
-            numbalib.wfs.zoomtoefield(self.los.phase, self.interp_efield, thread_pool=self.thread_pool)
+            numbalib.wfs.zoomtoefield(self.los.phase, self.interp_efield)
 
         else:
             self.interp_efield = self.EField

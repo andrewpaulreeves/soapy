@@ -128,8 +128,7 @@ class PSF(object):
         '''
 
         numbalib.bilinear_interp(
-                self.los.phase, self.interp_coords, self.interp_coords, self.interp_phase,
-                self.thread_pool, bounds_check=False)
+                self.los.phase, self.interp_coords, self.interp_coords, self.interp_phase)
 
         self.EField_fov = numpy.exp(1j * self.interp_phase) * self.scaledMask
 

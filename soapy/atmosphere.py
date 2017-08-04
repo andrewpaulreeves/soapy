@@ -510,8 +510,7 @@ class InfinitePhaseScreen(infinitephasescreen.PhaseScreenVonKarman):
         self._scrn = self._scrn[:self.stencil_length, :self.nx_size]
 
         numbalib.bilinear_interp(
-                self._scrn, self.interp_coords - self.float_position, self.interp_coords, self.output_screen,
-                self.thread_pool)
+                self._scrn, self.interp_coords - self.float_position, self.interp_coords, self.output_screen)
 
         self.rotate_screen()
 

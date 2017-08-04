@@ -337,9 +337,9 @@ class ShackHartmann(base.WFS):
 
         # Create an array of individual subap EFields
         self.fft_input_data[:] = 0
-        numbalib.wfs.chop_subaps_mask_pool(
+        numbalib.wfs.chop_subaps_mask(
                 self.interp_efield, self.interp_subap_coords, self.nx_subap_interp,
-                self.fft_input_data, self.scaledMask, thread_pool=self.thread_pool)
+                self.fft_input_data, self.scaledMask)
         self.fft_input_data[:, :self.nx_subap_interp, :self.nx_subap_interp] *= self.tilt_fix_efield
         self.FFT()
 
@@ -368,9 +368,8 @@ class ShackHartmann(base.WFS):
         # bins back down to correct size and then
         # fits them back in to a focal plane array
         self.binnedFPSubapArrays[:] = 0
-        numbalib.wfs.bin_imgs_pool(
-                self.subap_focus_intensity, self.config.fftOversamp, self.binnedFPSubapArrays,
-                thread_pool=self.thread_pool)
+        numbalib.wfs.bin_imgs(
+                self.subap_focus_intensity, self.config.fftOversamp, self.binnedFPSubapArrays)
 
         # Scale each sub-ap flux by sub-aperture fill-factor
         self.binnedFPSubapArrays\
@@ -422,7 +421,7 @@ class ShackHartmann(base.WFS):
         '''
         numbalib.wfs.chop_subaps(
                 self.detector, self.detector_cent_coords, self.nx_subap_pixels,
-                self.centSubapArrays, threads=self.threads)
+                self.centSubapArrays)
 
         slopes = getattr(centroiders, self.config.centMethod)(
                 self.centSubapArrays,

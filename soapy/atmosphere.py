@@ -51,6 +51,7 @@ Examples:
 import os
 import random
 import time
+import multiprocessing
 
 import numpy
 import scipy.fftpack as fft
@@ -149,6 +150,7 @@ class atmos(object):
 
         # If required, generate some new Kolmogorov phase screens
         if self.config.infinite:
+
             self.infinite_phase_screens = []
             for layer in range(self.config.scrnNo):
                 logger.info("Initialise Infinite Phase Screen {}".format(layer+1))
@@ -564,9 +566,9 @@ class InfinitePhaseScreen(infinitephasescreen.PhaseScreenVonKarman):
         #         self.seperations[i, j] = delta_r
 
 import numba
-@numba.jit(nopython=True)
+@numba.jit(nopython=True, parallel=True)
 def calculate_seperations(positions, seperations):
-    for i in range(positions.shape[0]):
+    for i in numba.prange(positions.shape[0]):
         (x1, y1) = positions[i]
         for j in range(positions.shape[0]):
             (x2, y2) = positions[j]

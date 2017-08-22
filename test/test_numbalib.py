@@ -14,8 +14,7 @@ def test_zoomtoefield():
     output_efield2 = numpy.zeros((100, 100), dtype="complex64")
     
 
-    thread_pool = numbalib.ThreadPool(1)
-    numbalib.wfs.zoom(input_data, output_data, thread_pool=thread_pool)
+    numbalib.wfs.zoom(input_data, output_data)
 
     output_efield1 = numpy.exp(1j * output_data)
 
@@ -38,9 +37,7 @@ def test_zoomtoefield_threads():
         output_data = numpy.zeros((100, 100), dtype="float32")
         output_efield2 = numpy.zeros((100, 100), dtype="complex64")
         
-
-        thread_pool = numbalib.ThreadPool(4)
-        numbalib.wfs.zoom(input_data, output_data, thread_pool=thread_pool)
+        numbalib.wfs.zoom(input_data, output_data)
 
         output_efield1 = numpy.exp(1j * output_data)
 
@@ -72,9 +69,8 @@ def test_chop_subaps_mask():
     subap_coords = numpy.array([x_coords.flatten(), y_coords.flatten()]).T
 
     numpy_chop(phase, subap_coords, nx_subap_size, numpy_subap_array, mask)
-    thread_pool = numbalib.ThreadPool(1)
     numbalib.wfs.chop_subaps_mask_pool(
-            phase, subap_coords, nx_subap_size, subap_array, mask, thread_pool)
+            phase, subap_coords, nx_subap_size, subap_array, mask)
     assert numpy.array_equal(numpy_subap_array, subap_array)
 
 
@@ -105,9 +101,8 @@ def test_chop_subaps_mask_threads():
                 ).astype("complex64")
 
         numpy_chop(phase, subap_coords, nx_subap_size, numpy_subap_array, mask)
-        thread_pool = numbalib.ThreadPool(1)
         numbalib.wfs.chop_subaps_mask_pool(
-                phase, subap_coords, nx_subap_size, subap_array, mask, thread_pool)
+                phase, subap_coords, nx_subap_size, subap_array, mask)
 
         assert numpy.array_equal(numpy_subap_array, subap_array)
 

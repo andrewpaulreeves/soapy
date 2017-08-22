@@ -49,7 +49,6 @@ class PSF(object):
 
         self.setMask(mask)
 
-        self.thread_pool = numbalib.ThreadPool(self.threads)
 
         self.FOVPxlNo = int(numpy.round(
             self.telescope_diameter * self.fov_rad

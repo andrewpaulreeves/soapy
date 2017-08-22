@@ -101,8 +101,6 @@ class ShackHartmann(base.WFS):
         self.referenceImage = self.config.referenceImage
         self.n_measurements = 2 * self.n_subaps
 
-        self.thread_pool = numbalib.ThreadPool(self.threads)
-
     def initLos(self):
         """
         Initialises the ``LineOfSight`` object, which gets the phase or EField in a given direction through turbulence.

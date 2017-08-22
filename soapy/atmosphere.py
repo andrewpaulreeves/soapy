@@ -488,8 +488,6 @@ class InfinitePhaseScreen(infinitephasescreen.PhaseScreenVonKarman):
         # The coordinates to use to interpolate - will add on a float  less that 1
         self.interp_coords = numpy.arange(1, self.nx_size+1)
 
-        self.thread_pool = numbalib.ThreadPool(2)
-
         self.output_screen = numpy.zeros((self.nx_size, self.nx_size))
         self.output_rotation_screen = numpy.zeros((self.nx_output_size, self.nx_output_size))
 

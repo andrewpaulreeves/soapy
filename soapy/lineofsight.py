@@ -99,9 +99,6 @@ class LineOfSight(object):
         # Can be set to use other values as metapupil position
         self.metaPupilPos = metaPupilPos
 
-        self.thread_pool = numbalib.ThreadPool(self.threads)
-
-
     # Some attributes for compatability between WFS and others
     @property
     def height(self):

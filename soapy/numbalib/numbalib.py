@@ -119,28 +119,7 @@ def rotate(data, interpArray, rotation_angle):
 @numba.vectorize(["float32(complex64)"], nopython=True, target="parallel")
 def abs_squared(data):
     return abs(data)**2
-#
-#
-# def bin_img(input_img, bin_size, binned_img, threads=None):
-#     if threads is None:
-#         threads = N_CPU
-#
-#     n_rows = binned_img.shape[0]
-#
-#     Ts = []
-#     for t in range(threads):
-#         Ts.append(Thread(target=bin_img_numba,
-#                          args=(
-#                              input_img, bin_size, binned_img,
-#                              numpy.array([int(t * n_rows / threads), int((t + 1) * n_rows / threads)]),
-#                          )
-#                          ))
-#         Ts[t].start()
-#
-#     for T in Ts:
-#         T.join()
-#
-#     return binned_img
+
 
 
 @numba.jit(nopython=True, nogil=True, parallel=True)

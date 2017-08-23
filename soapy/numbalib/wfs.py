@@ -75,45 +75,9 @@ def zoomtoefield(data, zoomArray):
     return zoomArray
 
 
-
-# def chop_subaps_mask(phase, subap_coords, nx_subap_size, subap_array, mask, threads=None):
-#     if threads is None:
-#         threads = N_CPU
-#
-#     n_subaps = subap_coords.shape[0]
-#     Ts = []
-#     for t in range(threads):
-#         Ts.append(Thread(target=chop_subaps_mask_numba,
-#                          args=(
-#                              phase, subap_coords, nx_subap_size, subap_array, mask,
-#                              numpy.array([int(t * n_subaps / threads), int((t + 1) * n_subaps / threads)]),
-#                          )
-#                          ))
-#         Ts[t].start()
-#
-#     for T in Ts:
-#         T.join()
-#
-#     return subap_array
-#
-#
-# def chop_subaps_mask_pool(phase, subap_coords, nx_subap_size, subap_array, mask, thread_pool=None):
-#
-#     n_subaps = subap_coords.shape[0]
-#     args = []
-#     n_threads = thread_pool.n_threads
-#     for t in range(n_threads):
-#         args.append(
-#             (phase, subap_coords, nx_subap_size, subap_array, mask,
-#             numpy.array([int(t * n_subaps / n_threads), int((t + 1) * n_subaps / n_threads)])))
-#
-#     thread_pool.run(chop_subaps_mask_numba, args)
-#
-#     return subap_array
-
 @numba.jit(nopython=True, nogil=True, parallel=True)
 def chop_subaps_mask(phase, subap_coords, nx_subap_size, subap_array, mask):
-    for i in range(subap_coords.shape[0]):
+    for i in numba.prange(subap_coords.shape[0]):
         x1 = int(subap_coords[i, 0])
         x2 = int(subap_coords[i, 0] + nx_subap_size)
         y1 = int(subap_coords[i, 1])
@@ -124,18 +88,15 @@ def chop_subaps_mask(phase, subap_coords, nx_subap_size, subap_array, mask):
     return subap_array
 
 
-
-
-@numba.jit(nopython=True, nogil=True)
+@numba.jit(nopython=True, nogil=True, parallel=True)
 def chop_subaps(phase, subap_coords, nx_subap_size, subap_array):
-    for i in range(subap_coords.shape[0]):
+    for i in numba.prange(subap_coords.shape[0]):
         x = int(subap_coords[i, 0])
         y = int(subap_coords[i, 1])
 
         subap_array[i, :nx_subap_size, :nx_subap_size] = phase[x:x + nx_subap_size, y:y + nx_subap_size]
 
     return subap_array
-
 
 
 @numba.jit(nopython=True, nogil=True)
@@ -197,39 +158,16 @@ class Centroider(object):
 
     def centre_of_gravity_numba(self, subaps):
 
-        centre_of_gravity(subaps, self.indices, self.centroids, self.threads)
+        centre_of_gravity(subaps, self.indices, self.centroids)
         return self.centroids
 
 
-def centre_of_gravity(subaps, indices, centroids, threads=None):
-    if threads is None:
-        threads = N_CPU
-
-    n_subaps = subaps.shape[0]
-
-    Ts = []
-    for t in range(threads):
-        Ts.append(Thread(target=centre_of_gravity_numba,
-                         args=(
-                             subaps, indices, centroids,
-                             numpy.array([int(t * n_subaps / threads), int((t + 1) * n_subaps / threads)]),
-                         )))
-        Ts[t].start()
-
-    for T in Ts:
-        T.join()
-
-    return centroids
-
-
-@numba.jit(nopython=True, nogil=True)
-def centre_of_gravity_numba(subaps, indices, centroids, thread_indices):
-    s1, s2 = thread_indices
+@numba.jit(nopython=True, nogil=True, parallel=True)
+def centre_of_gravity(subaps, indices, centroids):
     nx_subap_size = subaps.shape[1]
-    subaps = subaps[s1:s2]
 
-    centroids[s1:s2, 0] = (
+    centroids[:, 0] = (
             indices[0] * subaps).sum((1, 2)) / subaps.sum((1, 2)) + 0.5 - nx_subap_size * 0.5
-    centroids[s1:s2, 1] = (
+    centroids[:, 1] = (
             indices[1] * subaps).sum((1, 2)) / subaps.sum((1, 2)) + 0.5 - nx_subap_size * 0.5
 

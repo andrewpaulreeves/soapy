@@ -56,6 +56,7 @@ WFS:
     wavelength: 550e-9
     subapFieldStop: True
     centThreshold: 0
+    subapThreshold: 0.8
 
 
 DM:
@@ -74,7 +75,7 @@ DM:
 
 Reconstructor:
   type: MVM
-  svdConditioning: 0.01
+  svdConditioning: 0.001
   gain: 0.6
 
 
@@ -84,5 +85,5 @@ Science:
     position: [0, 0]
     FOV: 0.5
     wavelength: 1.65e-6
-    pxls: 128
+    pxls: 256
 

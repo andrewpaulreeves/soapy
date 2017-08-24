@@ -3,7 +3,7 @@ pupilSize: 444
 nGS: 1
 nDM: 2
 nSci: 1
-nIters: 100
+nIters: 5000
 loopTime: 0.00125
 reconstructor: "MVM"
 

@@ -341,7 +341,8 @@ class ShackHartmann(base.WFS):
         self.fft_input_data[:, :self.nx_subap_interp, :self.nx_subap_interp] *= self.tilt_fix_efield
         self.FFT()
 
-        self.temp_subap_focus = AOFFT.ftShift2d(self.fft_output_data)
+        # self.temp_subap_focus = AOFFT.ftShift2d(self.fft_output_data)
+        self.temp_subap_focus = numbalib.wfs.fft_shift_subaps(self.fft_output_data)
 
         numbalib.abs_squared(self.temp_subap_focus, out=self.subap_focus_intensity)
 

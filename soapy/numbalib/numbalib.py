@@ -139,3 +139,42 @@ def bin_img(imgs, bin_size, new_img):
 
 
 
+@numba.jit(nopython=True, nogil=True, parallel=True)
+def fft_shift(data):
+    s1 = data.shape[0]//2
+    s2 = data.shape[1]//2
+    for x in numba.prange(s1):
+        for y in range(s2):
+
+            temp_val1 = data[x, y]
+            temp_val2 = data[(x + s1) % data.shape[0], (y + s2) % data.shape[1]]
+            temp_val3 = data[x, (y + s2) % data.shape[1]]
+            temp_val4 = data[(x + s1) % data.shape[0], y]
+
+            data[x, y] = temp_val2
+            data[(x + s1) % data.shape[0], (y + s2) % data.shape[1]] = temp_val1
+            data[x, (y + s2) % data.shape[1]] = temp_val4
+            data[(x + s1) % data.shape[0], y] = temp_val3
+
+    return data
+
+
+@numba.jit(nopython=True, nogil=True, parallel=True)
+def fft_shift_1thread(data):
+    s1 = data.shape[0]//2
+    s2 = data.shape[1]//2
+    for x in range(s1):
+        for y in range(s2):
+
+            temp_val1 = data[x, y]
+            temp_val2 = data[(x + s1) % data.shape[0], (y + s2) % data.shape[1]]
+            temp_val3 = data[x, (y + s2) % data.shape[1]]
+            temp_val4 = data[(x + s1) % data.shape[0], y]
+
+            data[x, y] = temp_val2
+            data[(x + s1) % data.shape[0], (y + s2) % data.shape[1]] = temp_val1
+            data[x, (y + s2) % data.shape[1]] = temp_val4
+            data[(x + s1) % data.shape[0], y] = temp_val3
+
+    return data
+

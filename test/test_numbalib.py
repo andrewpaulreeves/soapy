@@ -24,28 +24,6 @@ def test_zoomtoefield():
 
 
 
-def test_zoomtoefield_threads():
-    """
-    Checks that when zooming to efield, the same result is found as when zooming
-    then using numpy.exp to get efield.
-    Uses multiple threads and runs many times in case of intermittant threading bugs
-    """
-
-    # Perform this tests many times to catch any intermittent errors
-    for i in range(50):
-        input_data = numpy.random.random((10,10)).astype("float32")
-        output_data = numpy.zeros((100, 100), dtype="float32")
-        output_efield2 = numpy.zeros((100, 100), dtype="complex64")
-        
-        numbalib.wfs.zoom(input_data, output_data)
-
-        output_efield1 = numpy.exp(1j * output_data)
-
-        numbalib.wfs.zoomtoefield(input_data, output_efield2)
-
-        assert numpy.allclose(output_efield1, output_efield2)
-
-
 def test_chop_subaps_mask():
     """
     Tests that the numba routing chops phase into sub-apertures in the same way
@@ -74,43 +52,11 @@ def test_chop_subaps_mask():
     assert numpy.array_equal(numpy_subap_array, subap_array)
 
 
-def test_chop_subaps_mask_threads():
-    """
-    Tests that the numba routing chops phase into sub-apertures in the same way
-    as using numpy indices
-    Runs with multiple threads many times to detectect potential intermittant errors
-    """
-    nx_phase = 12
-    nx_subap_size = 3
-    nx_subaps = nx_phase // nx_subap_size
-
-    subap_array = numpy.zeros((nx_subaps * nx_subaps, nx_subap_size, nx_subap_size)).astype("complex64")
-    numpy_subap_array = subap_array.copy()
-
-    mask = aotools.circle(nx_phase/2., nx_phase)
-
-    x_coords, y_coords = numpy.meshgrid(
-            numpy.arange(0, nx_phase, nx_subap_size),
-            numpy.arange(0, nx_phase, nx_subap_size))
-    subap_coords = numpy.array([y_coords.flatten(),x_coords.flatten()]).T
-
-
-    for i in range(50):
-        phase = (numpy.random.random((nx_phase, nx_phase)) 
-                + 1j * numpy.random.random((nx_phase, nx_phase))
-                ).astype("complex64")
-
-        numpy_chop(phase, subap_coords, nx_subap_size, numpy_subap_array, mask)
-        numbalib.wfs.chop_subaps_mask(
-                phase, subap_coords, nx_subap_size, subap_array, mask)
-
-        assert numpy.array_equal(numpy_subap_array, subap_array)
-
 def numpy_chop(phase, subap_coords, nx_subap_size, subap_array, mask):
     """
     Numpy vesion of chop subaps tests
     """
-    mask_phase = mask * phase
+    mask_phase = phase * mask
     for n, (x, y) in enumerate(subap_coords):
         subap_array[n] = mask_phase[
                 x: x + nx_subap_size,
@@ -139,7 +85,6 @@ def test_place_subaps_detector():
     tot_pxls_per_subap = 2 * pxls_per_subap # More for total FOV
     tot_subaps = nx_subaps * nx_subaps
     nx_pxls = nx_subaps * pxls_per_subap
-    n_threads = 1
 
     detector = numpy.zeros((nx_pxls, nx_pxls))
     detector_numpy = detector.copy()
@@ -195,6 +140,31 @@ def numpy_place_subaps( subap_arrays, detector, detector_subap_coords, valid_sub
         detector[x1: x2, y1: y2] += subap[sx1: sx2, sy1: sy2]
     
     return detector
+
+
+def test_geometric_propagation():
+
+    phase_screens = numpy.random.random((10, 128, 128))
+
+    phase_buf = numpy.zeros((128, 128))
+
+
+    efield_buf = numpy.zeros((128, 128), dtype="complex64")
+    phase2Rad = 0.5
+    propagation_direction = 1
+
+    numbalib.los.makePhaseGeometric(phase_screens, phase2Rad, propagation_direction, phase_buf, efield_buf)
+
+    phase1 = phase_buf.copy()
+    efield1 = efield_buf.copy()
+
+    phase_buf[:] = 0
+    efield_buf[:] = 1
+    numbalib.los.makePhaseGeometric_numpy(phase_screens, phase2Rad, propagation_direction, phase_buf, efield_buf)
+
+
+    assert numpy.array_equal(phase1, phase_buf)
+    assert numpy.array_equal(efield1, efield_buf)
 
 if __name__ == "__main__":
     test_zoomtoefield()

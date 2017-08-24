@@ -278,17 +278,12 @@ class LineOfSight(object):
             apos (ndarray, optional):  The angular position of the GS in radians. If not set, will use the config position
         '''
 
+        if self.propagation_direction == "up":
+            propagation_dir = -1
+        else:
+            propagation_dir = 1
 
-        self.phase_screens.sum(0, out=self.phase)
-
-        # Convert phase to radians
-        self.phase *= self.phs2Rad
-
-        # Change sign if propagating up
-        if self.propagation_direction == 'up':
-            self.phase *= -1
-
-        self.EField[:] = numpy.exp(1j*self.phase)
+        numbalib.los.makePhaseGeometric(self.phase_screens, self.phs2Rad, propagation_dir, self.phase, self.EField)
 
         return self.EField
 

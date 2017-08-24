@@ -1,10 +1,14 @@
-import multiprocessing
-N_CPU = multiprocessing.cpu_count()
-from threading import Thread
-from . import numbalib
-
 import numpy
 import numba
+
+from . import numbalib
+
+@numba.jit(nopython=True, nogil=True, parallel=True)
+def fft_shift_subaps(data):
+    for s in numba.prange(data.shape[0]):
+        numbalib.fft_shift_1thread(data[s])
+    return data
+
 
 @numba.jit(nopython=True, nogil=True, parallel=True)
 def zoom(data, zoomArray):
@@ -77,20 +81,43 @@ def zoomtoefield(data, zoomArray):
 
 @numba.jit(nopython=True, nogil=True, parallel=True)
 def chop_subaps_mask(phase, subap_coords, nx_subap_size, subap_array, mask):
-    for i in numba.prange(subap_coords.shape[0]):
-        x1 = int(subap_coords[i, 0])
-        x2 = int(subap_coords[i, 0] + nx_subap_size)
-        y1 = int(subap_coords[i, 1])
-        y2 = int(subap_coords[i, 1] + nx_subap_size)
+    """
+    Splits the phase into sub-apertures
 
-        subap_array[i, :nx_subap_size, :nx_subap_size] = phase[x1: x2, y1: y2] * mask[x1: x2, y1: y2]
+    A given phase array is split into a grid of "sub-apertures", each with size
+    `nx_subap_size`. The location  of each sub-apertures intial vertex is given
+    in the array `subap_coords`, a 2-d array of shape `(n_subaps, 2)`. The resulting
+    sub-apertures are placed into the pre-allocated `subap_array`, of size
+    `(n_subaps, nx_subap_size, nx_subap_size)`. During this process, a pupil
+    mask is applied, given by `mask`.
+
+    Parameters:
+        phase (ndarray): Array of phase
+        subap_coords (ndarray): Coordinates of each sub-apertures initila vertex
+        nx_subap_size (int): 1-D Size of sub-apertures
+        subap_array (ndarray): Array to place sub-apertures
+        mask (ndarray): Pupil mask
+
+    Returns:
+        ndarray: View of subap_array
+    """
+    for i in numba.prange(subap_coords.shape[0]):
+        x1 = numba.int32(subap_coords[i, 0])
+        x2 = numba.int32(subap_coords[i, 0] + nx_subap_size)
+        y1 = numba.int32(subap_coords[i, 1])
+        y2 = numba.int32(subap_coords[i, 1] + nx_subap_size)
+
+        for x in range(nx_subap_size):
+            for y in range(nx_subap_size):
+                subap_array[i, x, y] = phase[x1+x, y1+y] * mask[x1+x, y1+y]
 
     return subap_array
 
 
+
 @numba.jit(nopython=True, nogil=True, parallel=True)
 def chop_subaps(phase, subap_coords, nx_subap_size, subap_array):
-    for i in numba.prange(subap_coords.shape[0]):
+    for i in numba.prange(numba.int32(subap_coords.shape[0])):
         x = int(subap_coords[i, 0])
         y = int(subap_coords[i, 1])
 
@@ -100,7 +127,7 @@ def chop_subaps(phase, subap_coords, nx_subap_size, subap_array):
 
 
 @numba.jit(nopython=True, nogil=True)
-def place_subaps_on_detector(subap_imgs, detector_img, detector_positions, subap_coords):
+def place_subaps_on_detector_(subap_imgs, detector_img, detector_positions, subap_coords):
     """
     Puts a set of sub-apertures onto a detector image
     """
@@ -112,6 +139,21 @@ def place_subaps_on_detector(subap_imgs, detector_img, detector_positions, subap
 
     return detector_img
 
+
+@numba.jit(nopython=True, nogil=True)
+def place_subaps_on_detector(subap_imgs, detector_img, detector_positions, subap_coords):
+    """
+    Puts a set of sub-apertures onto a detector image
+    """
+
+    for i in range(subap_imgs.shape[0]):
+        x1, x2, y1, y2 = detector_positions[i]
+        sx1 ,sx2, sy1, sy2 = subap_coords[i]
+        for x in range(x2 - x1):
+            for y in range(y2 - y1):
+                detector_img[x1 + x, y1 + y] += subap_imgs[i, sx1 + x, sy1 + y]
+
+    return detector_img
 
 @numba.jit(nopython=True, nogil=True, parallel=True)
 def bin_imgs(imgs, bin_size, new_img):

@@ -551,7 +551,7 @@ class InfinitePhaseScreen(infinitephasescreen.PhaseScreenVonKarman):
         positions = numpy.append(self.stencil_positions, self.X_positions, axis=0)
         self.seperations = numpy.zeros((len(positions), len(positions)))
 
-        calculate_seperations(positions, self.seperations)
+        numbalib.atmos.calculate_seperations(positions, self.seperations)
 
         # for i, (x1, y1) in enumerate(positions):
         #     for j, (x2, y2) in enumerate(positions):
@@ -563,16 +563,3 @@ class InfinitePhaseScreen(infinitephasescreen.PhaseScreenVonKarman):
         #
         #         self.seperations[i, j] = delta_r
 
-import numba
-@numba.jit(nopython=True, parallel=True)
-def calculate_seperations(positions, seperations):
-    for i in numba.prange(positions.shape[0]):
-        (x1, y1) = positions[i]
-        for j in range(positions.shape[0]):
-            (x2, y2) = positions[j]
-            delta_x = x2 - x1
-            delta_y = y2 - y1
-
-            delta_r = numpy.sqrt(delta_x ** 2 + delta_y ** 2)
-
-            seperations[i, j] = delta_r

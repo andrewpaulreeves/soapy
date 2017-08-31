@@ -422,11 +422,23 @@ class ShackHartmann(base.WFS):
                 self.detector, self.detector_cent_coords, self.nx_subap_pixels,
                 self.centSubapArrays)
 
-        slopes = getattr(centroiders, self.config.centMethod)(
-                self.centSubapArrays,
-                threshold=self.config.centThreshold,
-                ref=self.referenceImage
-                )
+        # Perform centroiding
+        try:
+            # Attempt to see if there is an accelerated version available
+            slopes = numpy.zeros((self.n_subaps, 2), dtype=DTYPE)
+            slopes = getattr(numbalib.wfs, self.config.centMethod)(
+                    self.centSubapArrays, slopes,
+                    threshold=self.config.centThreshold,
+                    ref=self.referenceImage
+                    )
+
+        except AttributeError:
+            # If not, fall back to a version from aotools
+            slopes = getattr(centroiders, self.config.centMethod)(
+                    self.centSubapArrays,
+                    threshold=self.config.centThreshold,
+                    ref=self.referenceImage
+                    )
 
         # If no light in a sub-ap may get NaNs
         slopes = numpy.nan_to_num(slopes)

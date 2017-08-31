@@ -311,20 +311,23 @@ class LineOfSight(object):
             correction (list or ndarray): either 2-d array describing correction, or list of correction arrays
         """
         for i in range(correction.shape[0]):
-            numbalib.bilinear_interp(
+            numbalib.bilinear_interp_inbounds(
                 correction[i], self.dm_metapupil_coords[i, 0], self.dm_metapupil_coords[i, 1],
                 self.correction_screens[i])
 
-        self.correction_screens.sum(0, out=self.phase_correction)
+        # self.correction_screens.sum(0, out=self.phase_correction)
+        #
+        # # Correct EField
+        # self.EField *= numpy.exp(-1j * self.phase_correction * self.phs2Rad)
+        #
+        # # Also correct phase in case its required
+        # self.residual = self.phase / self.phs2Rad - self.phase_correction
+        #
+        # self.phase = self.residual * self.phs2Rad
 
-        # Correct EField
-        self.EField *= numpy.exp(-1j * self.phase_correction * self.phs2Rad)
-
-        # Also correct phase in case its required
-        self.residual = self.phase / self.phs2Rad - self.phase_correction
-
-        self.phase = self.residual * self.phs2Rad
-
+        self.residual = numbalib.los.perform_correction_numpy(
+                self.correction_screens, self.phs2Rad, -1, self.phase_correction,
+                self.phase, self.EField, self.residual)
 
     def frame(self, scrns=None, correction=None):
         '''

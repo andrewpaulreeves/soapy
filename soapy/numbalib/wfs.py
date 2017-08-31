@@ -171,45 +171,28 @@ def bin_imgs(imgs, bin_size, new_img):
                         new_img[n, i, j] += imgs[n, x + x1, y + y1]
 
 
-
-class Centroider(object):
-    def __init__(self, n_subaps, nx_subap_pxls, threads=None):
-
-        if threads is None:
-            self.threads = 1
-        else:
-            self.threads = threads
-
-        self.n_subaps = n_subaps
-        self.nx_subap_pxls = nx_subap_pxls
-
-        self.indices = numpy.indices((self.nx_subap_pxls, self.nx_subap_pxls))
-
-        self.centroids = numpy.zeros((n_subaps, 2))
-
-    def __call__(self, subaps):
-        self.centre_of_gravity_numpy(subaps)
-        return self.centroids
-
-    def centre_of_gravity_numpy(self, subaps):
-        self.centroids[:, 1] = ((self.indices[0] * subaps).sum((1, 2)) / subaps.sum((1, 2))) + 0.5 - subaps.shape[
-                                                                                                         1] * 0.5
-        self.centroids[:, 0] = ((self.indices[1] * subaps).sum((1, 2)) / subaps.sum((1, 2))) + 0.5 - subaps.shape[
-                                                                                                         2] * 0.5
-        return self.centroids
-
-    def centre_of_gravity_numba(self, subaps):
-
-        centre_of_gravity(subaps, self.indices, self.centroids)
-        return self.centroids
-
-
-@numba.jit(nopython=True, nogil=True, parallel=True)
-def centre_of_gravity(subaps, indices, centroids):
+@numba.jit(nopython=True, parallel=True)
+def centreOfGravity(subaps, centroids, threshold=0, ref=None):
     nx_subap_size = subaps.shape[1]
+    ny_subap_size = subaps.shape[2]
 
-    centroids[:, 0] = (
-            indices[0] * subaps).sum((1, 2)) / subaps.sum((1, 2)) + 0.5 - nx_subap_size * 0.5
-    centroids[:, 1] = (
-            indices[1] * subaps).sum((1, 2)) / subaps.sum((1, 2)) + 0.5 - nx_subap_size * 0.5
+    # Loop over each sub-ap
+    # for s in numba.prange(subaps.shape[0]):
+    for s in range(subaps.shape[0]):
+        centroid_sum_x = 0
+        centroid_sum_y = 0
+        subap_sum = 0
+        threshold_max = threshold * subaps[s].max()
+        for x in range(nx_subap_size):
+            for y in range(ny_subap_size):
+
+                if subaps[s, x, y] > threshold_max:
+                    centroid_sum_x += subaps[s, x, y] * x
+                    centroid_sum_y += subaps[s, x, y] * y
+                    subap_sum += subaps[s, x, y]
+
+        centroids[s, 1] = (centroid_sum_x / subap_sum) + 0.5
+        centroids[s, 0] = (centroid_sum_y / subap_sum) + 0.5
+
+    return centroids.T
 

@@ -149,7 +149,7 @@ def test_geometric_propagation():
     phase_buf = numpy.zeros((128, 128))
 
 
-    efield_buf = numpy.zeros((128, 128), dtype="complex64")
+    efield_buf = numpy.ones((128, 128), dtype="complex64")
     phase2Rad = 0.5
     propagation_direction = 1
 
@@ -165,6 +165,42 @@ def test_geometric_propagation():
 
     assert numpy.array_equal(phase1, phase_buf)
     assert numpy.array_equal(efield1, efield_buf)
+
+def test_perform_correction():
+
+    correction_screens = numpy.random.random((10, 128, 128))
+
+    phase_buf = numpy.zeros((128, 128))
+    residual_buf = numpy.zeros_like(phase_buf)
+    phase_correction = phase_buf.copy()
+
+    efield_buf = numpy.ones((128, 128), dtype="complex64")
+    phase2Rad = 0.5
+    propagation_direction = -1
+
+    residual_buf = numbalib.los.perform_correction(
+            correction_screens, phase2Rad, propagation_direction, phase_correction,
+            phase_buf, efield_buf, residual_buf)
+
+    phase1 = phase_buf.copy()
+    efield1 = efield_buf.copy()
+    residual1 = residual_buf.copy()
+    phase_correction1 = phase_correction.copy()
+
+    residual_buf[:] = 0
+    phase_buf[:] = 0
+    efield_buf[:] = 1
+    phase_correction[:] = 0
+
+    residual_buf = numbalib.los.perform_correction_numpy(
+            correction_screens, phase2Rad, propagation_direction, phase_correction,
+            phase_buf, efield_buf, residual_buf)
+
+    assert numpy.array_equal(phase_correction1, phase_correction)
+    assert numpy.array_equal(phase1, phase_buf)
+    assert numpy.array_equal(efield1, efield_buf)
+    assert numpy.array_equal(residual1, residual_buf)
+
 
 if __name__ == "__main__":
     test_zoomtoefield()

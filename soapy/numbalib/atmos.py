@@ -1,4 +1,6 @@
 import numba
+import numpy
+
 @numba.jit(nopython=True, parallel=True)
 def calculate_seperations(positions, seperations):
     for i in numba.prange(positions.shape[0]):

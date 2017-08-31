@@ -1,6 +1,6 @@
 import numpy
 import numba
-
+from . import numbalib
 
 def makePhaseGeometric_numpy(phase_screens, phase2Rad, propagation_direction, phase_array, EField_array):
     '''
@@ -62,3 +62,38 @@ def makePhaseGeometric(phase_screens, phase2Rad, propagation_direction, phase_ar
     return EField_array
 
 
+def perform_correction_numpy(
+            correction_screens, phase2Rad, propagation_direction, phase_correction,
+            phase_array, EField_array, residual):
+
+
+    correction_screens.sum(0, out=phase_correction)
+
+    # Correct EField
+    EField_array *= numpy.exp(propagation_direction * 1j * phase_correction * phase2Rad)
+
+    # Also correct phase in case its required
+    residual = phase_array / phase2Rad - phase_correction
+
+    phase_array[:] = residual * phase2Rad
+
+    return residual
+
+@numba.jit(nopython=True, parallel=True)
+def perform_correction(
+        correction_screens, phase2Rad, propagation_direction, phase_correction,
+        phase_array, EField_array, residual):
+
+    for dm in range(correction_screens.shape[0]):
+        for x in numba.prange(correction_screens.shape[1]):
+            for y in range(correction_screens.shape[2]):
+
+                phase_correction[x, y] += (correction_screens[dm, x, y])
+
+    for x in numba.prange(phase_array.shape[0]):
+        for y in range(phase_array.shape[1]):
+            EField_array[x, y] *= numpy.exp(propagation_direction * 1j * phase_correction[x, y] * phase2Rad)
+            residual[x, y] = (phase_array[x, y] / phase2Rad) - phase_correction[x, y]
+            phase_array[x, y] = residual[x, y] * phase2Rad
+
+    return residual

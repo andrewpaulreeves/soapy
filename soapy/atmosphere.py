@@ -553,13 +553,3 @@ class InfinitePhaseScreen(infinitephasescreen.PhaseScreenVonKarman):
 
         numbalib.atmos.calculate_seperations(positions, self.seperations)
 
-        # for i, (x1, y1) in enumerate(positions):
-        #     for j, (x2, y2) in enumerate(positions):
-        #
-        #         delta_x = x2 - x1
-        #         delta_y = y2 - y1
-        #
-        #         delta_r = numpy.sqrt(delta_x**2 + delta_y**2)
-        #
-        #         self.seperations[i, j] = delta_r
-

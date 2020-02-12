@@ -302,52 +302,52 @@ class atmos(object):
             # Deals with what happens when the window on the screen
             # reaches the edge - rolls it round and starts again.
             # X direction
-            if (self.scrnPos[i][0] + self.scrn_size) >= self.wholeScrnSize:
-                logger.debug("pos > scrn_size: rolling phase screen X")
-                self.wholeScrns[i] = numpy.roll(self.wholeScrns[i],
-                                                int(-self.scrnPos[i][0]),axis=0)
-                self.scrnPos[i][0] = 0
-                # and update the coords...
-                self.xCoords[i] = numpy.arange(self.scrn_size).astype('float')
-                self.interpScrns[i] = scipy.interpolate.RectBivariateSpline(
-                                            numpy.arange(self.wholeScrnSize),
-                                            numpy.arange(self.wholeScrnSize),
-                                            self.wholeScrns[i])
+            # if (self.scrnPos[i][0] + self.scrn_size) >= self.wholeScrnSize:
+            #     logger.debug("pos > scrn_size: rolling phase screen X")
+            #     self.wholeScrns[i] = numpy.roll(self.wholeScrns[i],
+            #                                     int(-self.scrnPos[i][0]),axis=0)
+            #     self.scrnPos[i][0] = 0
+            #     # and update the coords...
+            #     self.xCoords[i] = numpy.arange(self.scrn_size).astype('float')
+            #     self.interpScrns[i] = scipy.interpolate.RectBivariateSpline(
+            #                                 numpy.arange(self.wholeScrnSize),
+            #                                 numpy.arange(self.wholeScrnSize),
+            #                                 self.wholeScrns[i])
 
-            if self.scrnPos[i][0] < 0:
-                logger.debug("pos < 0: rolling phase screen X")
+            # if self.scrnPos[i][0] < 0:
+            #     logger.debug("pos < 0: rolling phase screen X")
 
-                self.wholeScrns[i] = numpy.roll(self.wholeScrns[i],
-                                                int(self.wholeScrnSize - self.scrnPos[i][0] - self.scrn_size), axis=0)
-                self.scrnPos[i][0] = self.wholeScrnSize-self.scrn_size
-                self.xCoords[i] = numpy.arange(self.scrn_size).astype('float') + self.scrnPos[i][0]
-                self.interpScrns[i] = scipy.interpolate.RectBivariateSpline(
-                                            numpy.arange(self.wholeScrnSize),
-                                            numpy.arange(self.wholeScrnSize),
-                                            self.wholeScrns[i])
-            # Y direction
-            if (self.scrnPos[i][1] + self.scrn_size) >= self.wholeScrnSize:
-                logger.debug("pos > scrn_size: rolling Phase Screen Y")
-                self.wholeScrns[i] = numpy.roll(self.wholeScrns[i],
-                                                int(-self.scrnPos[i][1]),axis=1)
-                self.scrnPos[i][1] = 0
-                self.yCoords[i] = numpy.arange(self.scrn_size).astype('float')
-                self.interpScrns[i] = scipy.interpolate.RectBivariateSpline(
-                                            numpy.arange(self.wholeScrnSize),
-                                            numpy.arange(self.wholeScrnSize),
-                                            self.wholeScrns[i])
-            if self.scrnPos[i][1] < 0:
-                logger.debug("pos < 0: rolling Phase Screen Y")
+            #     self.wholeScrns[i] = numpy.roll(self.wholeScrns[i],
+            #                                     int(self.wholeScrnSize - self.scrnPos[i][0] - self.scrn_size), axis=0)
+            #     self.scrnPos[i][0] = self.wholeScrnSize-self.scrn_size
+            #     self.xCoords[i] = numpy.arange(self.scrn_size).astype('float') + self.scrnPos[i][0]
+            #     self.interpScrns[i] = scipy.interpolate.RectBivariateSpline(
+            #                                 numpy.arange(self.wholeScrnSize),
+            #                                 numpy.arange(self.wholeScrnSize),
+            #                                 self.wholeScrns[i])
+            # # Y direction
+            # if (self.scrnPos[i][1] + self.scrn_size) >= self.wholeScrnSize:
+            #     logger.debug("pos > scrn_size: rolling Phase Screen Y")
+            #     self.wholeScrns[i] = numpy.roll(self.wholeScrns[i],
+            #                                     int(-self.scrnPos[i][1]),axis=1)
+            #     self.scrnPos[i][1] = 0
+            #     self.yCoords[i] = numpy.arange(self.scrn_size).astype('float')
+            #     self.interpScrns[i] = scipy.interpolate.RectBivariateSpline(
+            #                                 numpy.arange(self.wholeScrnSize),
+            #                                 numpy.arange(self.wholeScrnSize),
+            #                                 self.wholeScrns[i])
+            # if self.scrnPos[i][1] < 0:
+            #     logger.debug("pos < 0: rolling Phase Screen Y")
 
-                self.wholeScrns[i] = numpy.roll(self.wholeScrns[i],
-                                                int(self.wholeScrnSize - self.scrnPos[i][1] - self.scrn_size),
-                                                axis=1)
-                self.scrnPos[i][1] = self.wholeScrnSize-self.scrn_size
-                self.yCoords[i] = numpy.arange(self.scrn_size).astype('float') + self.scrnPos[i][1]
-                self.interpScrns[i] = scipy.interpolate.RectBivariateSpline(
-                                            numpy.arange(self.wholeScrnSize),
-                                            numpy.arange(self.wholeScrnSize),
-                                            self.wholeScrns[i])
+            #     self.wholeScrns[i] = numpy.roll(self.wholeScrns[i],
+            #                                     int(self.wholeScrnSize - self.scrnPos[i][1] - self.scrn_size),
+            #                                     axis=1)
+            #     self.scrnPos[i][1] = self.wholeScrnSize-self.scrn_size
+            #     self.yCoords[i] = numpy.arange(self.scrn_size).astype('float') + self.scrnPos[i][1]
+            #     self.interpScrns[i] = scipy.interpolate.RectBivariateSpline(
+            #                                 numpy.arange(self.wholeScrnSize),
+            #                                 numpy.arange(self.wholeScrnSize),
+            #                                 self.wholeScrns[i])
 
             self.scrns[i] = self.interpScrns[i](self.xCoords[i], self.yCoords[i])
 
@@ -355,6 +355,10 @@ class atmos(object):
             self.scrnPos[i] = self.scrnPos[i] + self.windV[i]
             self.xCoords[i] += self.windV[i][0].astype('float')
             self.yCoords[i] += self.windV[i][1].astype('float')
+
+            # TESTING - faster way to "roll" phase screens
+            self.xCoords[i] %= (self.wholeScrnSize - 1)
+            self.yCoords[i] %= (self.wholeScrnSize - 1)
 
             # Calculate the required r0 of each screen from config
             self.config.normScrnStrengths = (

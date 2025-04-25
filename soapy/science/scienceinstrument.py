@@ -29,7 +29,7 @@ import pyfftw
 
 import aotools
 
-from . import logger, lineofsight, numbalib, interp
+from .. import logger, lineofsight, numbalib, interp
 DTYPE = numpy.float32
 CDTYPE = numpy.complex64
 

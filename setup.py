@@ -20,7 +20,7 @@ setup(
         "numpy >= 1.7.0",
         "scipy >= 0.15.0",
         "astropy >= 1.0",
-        "aotools >= 1.0",
+        "aotools",
         "pyfftw >= 0.12.0",
         "pyyaml >= 5.1.1",
         "pyqtgraph >= 0.12.0",

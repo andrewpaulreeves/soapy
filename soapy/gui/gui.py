@@ -287,7 +287,7 @@ class GUI(QtWidgets.QMainWindow):
         if plotDict:
 
             # Get the min and max plot scaling
-            scaleValues = self.getPlotScaling(plotDict)
+            # scaleValues = self.getPlotScaling(plotDict)
 
             for wfs in range(self.config.sim.nGS):
                 if numpy.any(plotDict["wfsFocalPlane"][wfs])!=None:
@@ -301,19 +301,23 @@ class GUI(QtWidgets.QMainWindow):
                 if numpy.any(plotDict["wfsPhase"][wfs])!=None:
                     wfsPhase = plotDict["wfsPhase"][wfs]
                     self.phasePlots[wfs].setImage(
-                            wfsPhase, lut=self.LUT, levels=scaleValues)
+                            wfsPhase, lut=self.LUT,
+                            # levels=scaleValues
+                            )
                     self.phasePlots[wfs].getViewBox().setRange(
                             QtCore.QRectF(0, 0, wfsPhase.shape[0], wfsPhase.shape[1]))
 
-                if numpy.any(plotDict["lgsPsf"][wfs])!=None:
-                    self.lgsPlots[wfs].setImage(
-                        plotDict["lgsPsf"][wfs], lut=self.LUT)
+                # if numpy.any(plotDict["lgsPsf"][wfs])!=None:
+                #     self.lgsPlots[wfs].setImage(
+                #         plotDict["lgsPsf"][wfs], lut=self.LUT)
 
             for dm in range(self.config.sim.nDM):
                 if numpy.any(plotDict["dmShape"][dm]) !=None:
                     dmShape = plotDict["dmShape"][dm]
                     self.dmPlots[dm].setImage(plotDict["dmShape"][dm],
-                                            lut=self.LUT, levels=scaleValues)
+                                            lut=self.LUT,
+                                            # levels=scaleValues
+                                            )
 
             for sci in range(self.config.sim.nSci):
                 if numpy.any(plotDict["sciImg"][sci])!=None:
@@ -328,7 +332,9 @@ class GUI(QtWidgets.QMainWindow):
                     residual = plotDict["residual"][sci]
 
                     self.resPlots[sci].setImage(
-                            residual, lut=self.LUT, levels=scaleValues)
+                            residual, lut=self.LUT,
+                            # levels=scaleValues
+                            )
 
             if self.loopRunning:
                 self.updateStrehls()

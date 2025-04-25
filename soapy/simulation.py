@@ -86,7 +86,7 @@ except ImportError:
 import aotools
 
 #sim imports
-from . import atmosphere, logger, wfs, DM, reconstruction, scienceinstrument, confParse, interp
+from . import atmosphere, logger, wfs, DM, reconstruction, science, confParse, interp
 
 import shutil
 
@@ -277,7 +277,7 @@ class Sim(object):
                 if self.config.scis[nSci].loadModule:
                     sci_lib = importlib.import_module(self.config.scis[nSci].loadModule)
                 else:
-                    sci_lib = scienceinstrument
+                    sci_lib = science
                 sciObj = getattr(sci_lib, self.config.scis[nSci].type)
             except AttributeError:
                 raise confParse.ConfigurationError("No science camera of type {} found".format(self.config.scis[nSci].type))

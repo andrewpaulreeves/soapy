@@ -290,33 +290,33 @@ class GUI(QtWidgets.QMainWindow):
             scaleValues = self.getPlotScaling(plotDict)
 
             for wfs in range(self.config.sim.nGS):
-                if numpy.any(plotDict["wfsFocalPlane"][wfs])!=None:
-                    wfsFP = plotDict['wfsFocalPlane'][wfs]
+                wfsFP = plotDict['wfsFocalPlane'][wfs]
+                if wfsFP is not None:
                     self.wfsPlots[wfs].setImage(wfsFP, lut=self.LUT)
                     # self.wfsPlots[wfs].getViewBox().setRange(
                     #         QtCore.QRectF(0, 0, wfsFP.shape[0],
                     #         wfsFP.shape[1])
                     #         )
 
-                if numpy.any(plotDict["wfsPhase"][wfs])!=None:
-                    wfsPhase = plotDict["wfsPhase"][wfs]
+                wfsPhase = plotDict["wfsPhase"][wfs]
+                if wfsPhase is not None:
                     self.phasePlots[wfs].setImage(
                             wfsPhase, lut=self.LUT, levels=scaleValues)
                     self.phasePlots[wfs].getViewBox().setRange(
                             QtCore.QRectF(0, 0, wfsPhase.shape[0], wfsPhase.shape[1]))
 
-                if numpy.any(plotDict["lgsPsf"][wfs])!=None:
+                if plotDict["lgsPsf"][wfs] is not None:
                     self.lgsPlots[wfs].setImage(
                         plotDict["lgsPsf"][wfs], lut=self.LUT)
 
             for dm in range(self.config.sim.nDM):
-                if numpy.any(plotDict["dmShape"][dm]) !=None:
-                    dmShape = plotDict["dmShape"][dm]
-                    self.dmPlots[dm].setImage(plotDict["dmShape"][dm],
+                dmShape = plotDict["dmShape"][dm]
+                if dmShape is not None :
+                    self.dmPlots[dm].setImage(dmShape,
                                             lut=self.LUT, levels=scaleValues)
 
             for sci in range(self.config.sim.nSci):
-                if numpy.any(plotDict["sciImg"][sci])!=None:
+                if plotDict["sciImg"][sci] is not None:
                     if self.ui.instExpRadio.isChecked():
                         self.sciPlots[sci].setImage(
                                 plotDict["instSciImg"][sci], lut=self.LUT)
@@ -324,9 +324,8 @@ class GUI(QtWidgets.QMainWindow):
                         self.sciPlots[sci].setImage(
                                 plotDict["sciImg"][sci], lut=self.LUT)
 
-                if numpy.any(plotDict["residual"][sci])!=None:
-                    residual = plotDict["residual"][sci]
-
+                residual = plotDict["residual"][sci]
+                if residual is not None:
                     self.resPlots[sci].setImage(
                             residual, lut=self.LUT, levels=scaleValues)
 
@@ -342,19 +341,22 @@ class GUI(QtWidgets.QMainWindow):
         plotMins = []
         plotMaxs = []
         for wfs in range(self.config.sim.nGS):
-            if numpy.any(plotDict["wfsPhase"])!=None:
-                plotMins.append(plotDict["wfsPhase"][wfs].min())
-                plotMaxs.append(plotDict["wfsPhase"][wfs].max())
+            wfsPhase = plotDict["wfsPhase"][wfs]
+            if wfsPhase is not None:
+                plotMins.append(wfsPhase.min())
+                plotMaxs.append(wfsPhase.max())
 
         for dm in range(self.config.sim.nDM):
-            if numpy.any(plotDict["dmShape"][dm])!=None:
-                plotMins.append(plotDict["dmShape"][dm].min())
-                plotMaxs.append(plotDict["dmShape"][dm].max())
+            dmShape = plotDict["dmShape"][dm]
+            if dmShape is not None:
+                plotMins.append(dmShape.min())
+                plotMaxs.append(dmShape.max())
 
         for sci in range(self.config.sim.nSci):
-            if numpy.any(plotDict["residual"][sci])!=None:
-                plotMins.append(plotDict["residual"][sci].min())
-                plotMaxs.append(plotDict["residual"][sci].max())
+            residualSci = plotDict["residual"][sci]
+            if residualSci is not None:
+                plotMins.append(residualSci.min())
+                plotMaxs.append(residualSci.max())
 
         # Now get the min and max of mins and maxs
         plotMin = min(plotMins)
